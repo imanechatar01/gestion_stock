@@ -74,12 +74,12 @@ def show():
     
     with col1:
         if st.button("➕ Ajouter un produit", use_container_width=True):
-            st.success("Redirection vers la page Produits")
+           import pages._Produits
     
     with col2:
         if st.button("📥 Entrée de stock", use_container_width=True):
-            st.success("Redirection vers la page Inventaire")
+           import pages._Inventaire
     
     with col3:
         if st.button("📤 Sortie de stock", use_container_width=True):
-            st.success("Redirection vers la page Inventaire")
+            import pages._Inventaire
