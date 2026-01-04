@@ -286,9 +286,7 @@ def add_produit(produit_data):
         'quantite': 0,
         'seuil_min': 5,
         'prix_achat': 0.0,
-        'prix_vente': 0.0,
-        'emplacement': '',
-        'actif': 1
+        'prix_vente': 0.0
     }
     
     data = {**defaults, **produit_data}
@@ -297,16 +295,15 @@ def add_produit(produit_data):
     query = """
         INSERT INTO produits 
         (reference, nom, description, categorie_id, fournisseur_id, 
-         quantite, seuil_min, prix_achat, prix_vente, emplacement, actif)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         quantite, seuil_min, prix_achat, prix_vente)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     
     params = (
         data['reference'], data['nom'], data['description'],
         data['categorie_id'], data['fournisseur_id'],
         data['quantite'], data['seuil_min'],
-        data['prix_achat'], data['prix_vente'],
-        data['emplacement'], data['actif']
+        data['prix_achat'], data['prix_vente']
     )
     
     cursor = execute_query(query, params)
@@ -437,6 +434,22 @@ def add_fournisseur(nom, email="", telephone=""):
         (nom, email, telephone)
     )
     return cursor.lastrowid
+
+def delete_fournisseur(fournisseur_id):
+    """
+    Supprime un fournisseur de la base.
+    """
+    try:
+        # Vérifier s'il est utilisé par des produits
+        count = fetch_one("SELECT COUNT(*) as cnt FROM produits WHERE fournisseur_id = ?", (fournisseur_id,))
+        if count and count['cnt'] > 0:
+            raise ValueError(f"Impossible de supprimer: ce fournisseur est lié à {count['cnt']} produits.")
+
+        execute_query("DELETE FROM fournisseurs WHERE id = ?", (fournisseur_id,))
+        return True
+    except Exception as e:
+        logger.error(f"Erreur suppression fournisseur {fournisseur_id}: {e}")
+        raise e
 
 # ============================================================================
 # FONCTIONS UTILITAIRES
@@ -621,4 +634,16 @@ def delete_mouvement(mouvement_id):
         
     except Exception as e:
         logger.error(f"Erreur suppression mouvement {mouvement_id}: {e}")
+        return False
+    
+def delete_produit(produit_id):
+    """
+    Supprime un produit de la base.
+    """
+    try:
+        execute_query("DELETE FROM produits WHERE id = ?", (produit_id,))
+        return True
+    except Exception as e:
+        import logging
+        logging.error(f"Erreur suppression produit {produit_id}: {e}")
         return False
