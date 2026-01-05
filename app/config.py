@@ -17,7 +17,7 @@ AUTHORS = ["IMANE", "DOHA"]
 
 # Paramètres stock
 SEUIL_ALERTE_DEFAUT = 5
-DEVISE = "€"
+DEVISE = "DH"
 
 # Créer les dossiers nécessaires
 for dir_path in [DATA_DIR, STATIC_DIR]:

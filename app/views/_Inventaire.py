@@ -8,12 +8,36 @@ def show():
     st.title("📊 Gestion des Stocks et Inventaire")
     
     # Onglets pour les différentes fonctionnalités
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📥 Entrées Stock", 
-        "📤 Sorties Stock", 
-        "📋 Historique", 
-        "🔄 Inventaire"
-    ])
+    # Logique pour définir l'onglet par défaut (hack pour Streamlit qui ne permet pas de set l'index)
+    default_tab = st.session_state.get('inventory_default_tab', 'entrees')
+    
+    # Définition des titres
+    t_entrees = "📥 Entrées Stock"
+    t_sorties = "📤 Sorties Stock"
+    t_historique = "📋 Historique"
+    t_inventaire = "🔄 Inventaire"
+    
+    # Ordre d'affichage
+    if default_tab == 'sorties':
+        tabs_list = [t_sorties, t_entrees, t_historique, t_inventaire]
+    else:
+        tabs_list = [t_entrees, t_sorties, t_historique, t_inventaire]
+        
+    # Création des onglets
+    tabs = st.tabs(tabs_list)
+    
+    # Mapping des onglets pour garder la logique du code
+    # On assigne les variables tabX au bon container quel que soit l'ordre d'affichage
+    tab_map = {name: tab for name, tab in zip(tabs_list, tabs)}
+    
+    tab1 = tab_map[t_entrees]
+    tab2 = tab_map[t_sorties]
+    tab3 = tab_map[t_historique]
+    tab4 = tab_map[t_inventaire]
+    
+    # Réinitialisation de l'état pour ne pas forcer à chaque rechargement
+    if 'inventory_default_tab' in st.session_state:
+        del st.session_state['inventory_default_tab']
     
     # ============================================
     # TAB 1 : ENTREES DE STOCK
@@ -106,11 +130,7 @@ def show():
                         quantite=quantite,
                         type_mouvement="entree",
                         motif=f"{motif}: {motif_detail}" if motif_detail else motif,
-#####< HEAD
                         utilisateur="admin",
-#=======
-                        #utilisateur="admin",
-#>>>>>>> 61c4ca53d8b09c69e3cb947224eea52fc1fc7fea
                         document_ref=reference_doc
                     )
                     
@@ -280,117 +300,236 @@ def show():
     # ============================================
     # TAB 3 : HISTORIQUE DES MOUVEMENTS
     # ============================================
-###< HEAD
-#=======
         # ============================================
     # TAB 3 : HISTORIQUE DES MOUVEMENTS (FONCTIONNEL)
     # ============================================
-#>>>>>>> 61c4ca53d8b09c69e3cb947224eea52fc1fc7fea
     with tab3:
-        st.header("📋 Historique des Mouvements")
-        st.markdown("Consultez l'historique complet des entrées et sorties")
-        
-###< HEAD
-        # Filtres
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            # Filtre par date
-            periode = st.selectbox(
-                "Période",
-                ["7 derniers jours", "30 derniers jours", "3 derniers mois", "Toutes"]
-            )
+        # Filtres avancés
+        with st.expander("🔍 Filtres avancés", expanded=True):
+            col1, col2, col3 = st.columns(3)
             
-            # Calcul des dates en fonction de la période
-            aujourdhui = datetime.now()
-            if periode == "7 derniers jours":
-                date_debut = aujourdhui - timedelta(days=7)
-            elif periode == "30 derniers jours":
-                date_debut = aujourdhui - timedelta(days=30)
-            elif periode == "3 derniers mois":
-                date_debut = aujourdhui - timedelta(days=90)
-            else:
-                date_debut = None
+            with col1:
+                # Période
+                periode = st.selectbox(
+                    "Période",
+                    ["7 derniers jours", "30 derniers jours", "3 derniers mois", "Personnalisée", "Toutes"],
+                    key="hist_periode"
+                )
+                
+                # Dates personnalisées
+                if periode == "Personnalisée":
+                    date_debut = st.date_input("Date début")
+                    date_fin = st.date_input("Date fin")
+                else:
+                    date_debut = None
+                    date_fin = None
+            
+            with col2:
+                # Type de mouvement
+                type_mouvement = st.selectbox(
+                    "Type de mouvement",
+                    ["Tous", "entree", "sortie", "ajustement", "inventaire"],
+                    key="hist_type"
+                )
+                
+                # Utilisateur
+                utilisateur = st.text_input(
+                    "Utilisateur",
+                    placeholder="Filtrer par utilisateur...",
+                    key="hist_user"
+                )
+            
+            with col3:
+                # Produit
+                produits = database.get_all_produits()
+                produits_liste = ["Tous"] + [f"{p['id']} - {p['nom']}" for p in produits]
+                produit_filtre = st.selectbox(
+                    "Produit", 
+                    produits_liste,
+                    key="hist_produit"
+                )
+                
+                # Limite de résultats
+                limite = st.number_input(
+                    "Nombre max de résultats",
+                    min_value=10,
+                    max_value=1000,
+                    value=100,
+                    step=10,
+                    key="hist_limit"
+                )
         
-        with col2:
-            # Filtre par type de mouvement
-            type_mouvement = st.selectbox(
-                "Type de mouvement",
-                ["Tous", "Entrées", "Sorties"]
-            )
+        # Boutons d'action
+        col_btn1, col_btn2, col_btn3 = st.columns([2, 1, 1])
+        with col_btn1:
+            if st.button("🔍 Appliquer les filtres", type="primary", use_container_width=True):
+                st.rerun()
         
-        with col3:
-            # Filtre par produit
-            produits = database.get_all_produits()
-            produits_liste = ["Tous"] + [f"{p['id']}: {p['nom']}" for p in produits]
-            produit_filtre = st.selectbox("Produit", produits_liste)
+        with col_btn2:
+            if st.button("📥 Exporter", use_container_width=True):
+                st.info("Export en cours de développement...")
         
-        # Bouton d'actualisation
-        if st.button("🔍 Appliquer les filtres", use_container_width=True):
-            st.rerun()
+        with col_btn3:
+            if st.button("🔄 Actualiser", use_container_width=True):
+                st.rerun()
         
         st.markdown("---")
         
-        # Récupération des mouvements depuis la base
-        # Note: Il faudrait ajouter une fonction get_mouvements() dans database.py
-        # Pour l'instant, on simule avec un message
+        # Préparation des filtres pour la base de données
+        filtres = {'limit': limite}
         
-        st.info("""
-        **Fonctionnalité en développement**
+        # Gestion de la période
+        from datetime import datetime, timedelta
+        aujourdhui = datetime.now()
         
-        L'historique des mouvements nécessite l'ajout de la fonction `get_mouvements()` 
-        dans le module `database.py`.
+        if periode == "7 derniers jours":
+            filtres['date_debut'] = (aujourdhui - timedelta(days=7)).strftime('%Y-%m-%d')
+        elif periode == "30 derniers jours":
+            filtres['date_debut'] = (aujourdhui - timedelta(days=30)).strftime('%Y-%m-%d')
+        elif periode == "3 derniers mois":
+            filtres['date_debut'] = (aujourdhui - timedelta(days=90)).strftime('%Y-%m-%d')
+        elif periode == "Personnalisée" and date_debut and date_fin:
+            filtres['date_debut'] = date_debut.strftime('%Y-%m-%d')
+            filtres['date_fin'] = date_fin.strftime('%Y-%m-%d')
         
-        Pour l'instant, vous pouvez voir les mouvements en temps réel dans les onglets 
-        "Entrées" et "Sorties".
-        """)
+        # Autres filtres
+        if type_mouvement != "Tous":
+            filtres['type_mouvement'] = type_mouvement
         
-        # Code pour afficher l'historique (à décommenter quand la fonction sera disponible)
-        """
-        # Exemple de code quand get_mouvements() sera implémenté
-        mouvements = database.get_mouvements(
-            date_debut=date_debut,
-            type_mouvement=type_mouvement.lower() if type_mouvement != "Tous" else None,
-            produit_id=int(produit_filtre.split(":")[0]) if produit_filtre != "Tous" else None
-        )
+        if produit_filtre != "Tous":
+            produit_id = int(produit_filtre.split(" - ")[0])
+            filtres['produit_id'] = produit_id
         
-        if mouvements:
-            df_mouvements = pd.DataFrame(mouvements)
+        if utilisateur:
+            filtres['utilisateur'] = utilisateur
+        
+        # Récupération des mouvements
+        try:
+            mouvements = database.get_mouvements(filtres)
             
-            # Formatage des dates
-            df_mouvements['date_mouvement'] = pd.to_datetime(df_mouvements['date_mouvement'])
-            df_mouvements['date_formatee'] = df_mouvements['date_mouvement'].dt.strftime('%d/%m/%Y %H:%M')
-            
-            # Affichage sous forme de tableau
-            st.dataframe(
-                df_mouvements[['date_formatee', 'type', 'quantite', 'motif', 'utilisateur']],
-                column_config={
+            if mouvements:
+                # Conversion en DataFrame pour l'affichage
+                df_mouvements = pd.DataFrame(mouvements)
+                
+                # Formatage des dates
+                if 'date_mouvement' in df_mouvements.columns:
+                    df_mouvements['date_mouvement'] = pd.to_datetime(df_mouvements['date_mouvement'])
+                    df_mouvements['date_formatee'] = df_mouvements['date_mouvement'].dt.strftime('%d/%m/%Y %H:%M')
+                
+                # Ajout d'une colonne pour l'icône du type
+                def get_icon_mouvement(type_mvt):
+                    icons = {
+                        'entree': '📥',
+                        'sortie': '📤',
+                        'ajustement': '🔄',
+                        'inventaire': '📊',
+                        'annulation': '🗑️'
+                    }
+                    return icons.get(type_mvt, '📝')
+                
+                df_mouvements['icone'] = df_mouvements['type'].apply(get_icon_mouvement)
+                
+                # Calcul des statistiques
+                total_entrees = df_mouvements[df_mouvements['type'] == 'entree']['quantite'].sum()
+                total_sorties = df_mouvements[df_mouvements['type'] == 'sortie']['quantite'].sum()
+                solde_net = total_entrees - total_sorties
+                
+                # Affichage des statistiques
+                col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+                with col_stat1:
+                    st.metric("Mouvements", len(df_mouvements))
+                with col_stat2:
+                    st.metric("Entrées", f"{total_entrees} unités")
+                with col_stat3:
+                    st.metric("Sorties", f"{total_sorties} unités")
+                with col_stat4:
+                    st.metric("Solde net", f"{solde_net} unités", delta=f"{solde_net:+d}")
+                
+                st.markdown("---")
+                
+                # Affichage du tableau des mouvements
+                st.subheader("📄 Détail des mouvements")
+                
+                # Sélection des colonnes à afficher
+                columns_config = {
+                    "icone": " ",
                     "date_formatee": "Date",
+                    "produit_nom": "Produit",
                     "type": "Type",
                     "quantite": "Quantité",
+                    "quantite_avant": "Avant",
+                    "quantite_apres": "Après",
                     "motif": "Motif",
                     "utilisateur": "Utilisateur"
-                },
-                use_container_width=True,
-                height=400
-            )
-            
-            # Statistiques
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                total_entrees = df_mouvements[df_mouvements['type'] == 'entree']['quantite'].sum()
-                st.metric("Total entrées", f"{total_entrees} unités")
-            
-            with col2:
-                total_sorties = df_mouvements[df_mouvements['type'] == 'sortie']['quantite'].sum()
-                st.metric("Total sorties", f"{total_sorties} unités")
-            
-            with col3:
-                solde = total_entrees - total_sorties
-                st.metric("Solde net", f"{solde} unités", delta=f"{solde:+d}")
-        else:
-            st.info("Aucun mouvement trouvé pour les critères sélectionnés")
-        """
+                }
+                
+                # Filtrer les colonnes existantes
+                existing_columns = {k: v for k, v in columns_config.items() 
+                                  if k in df_mouvements.columns}
+                
+                # Affichage avec configuration
+                st.dataframe(
+                    df_mouvements[list(existing_columns.keys())],
+                    column_config=existing_columns,
+                    use_container_width=True,
+                    height=400
+                )
+                
+                # Options d'export
+                with st.expander("💾 Options d'export"):
+                    col_exp1, col_exp2 = st.columns(2)
+                    with col_exp1:
+                        if st.button("📊 Exporter en CSV", use_container_width=True):
+                            csv = df_mouvements.to_csv(index=False, encoding='utf-8-sig')
+                            st.download_button(
+                                label="Télécharger CSV",
+                                data=csv,
+                                file_name=f"historique_mouvements_{datetime.now().strftime('%Y%m%d')}.csv",
+                                mime="text/csv"
+                            )
+                    
+                    with col_exp2:
+                        if st.button("📈 Exporter en Excel", use_container_width=True):
+                            excel_path = f"historique_mouvements_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+                            df_mouvements.to_excel(excel_path, index=False)
+                            st.success(f"Exporté vers: {excel_path}")
+                
+                # Graphique d'évolution
+                st.markdown("---")
+                st.subheader("📈 Évolution des mouvements")
+                
+                if 'date_mouvement' in df_mouvements.columns:
+                    # Préparation des données pour le graphique
+                    df_graph = df_mouvements.copy()
+                    df_graph['date'] = df_graph['date_mouvement'].dt.date
+                    
+                    # Agrégation par date et type
+                    df_agg = df_graph.groupby(['date', 'type']).agg({
+                        'quantite': 'sum'
+                    }).reset_index()
+                    
+                    # Pivot pour avoir les types en colonnes
+                    df_pivot = df_agg.pivot(index='date', columns='type', values='quantite').fillna(0)
+                    
+                    # Affichage du graphique
+                    if not df_pivot.empty:
+                        st.line_chart(df_pivot)
+                    else:
+                        st.info("Données insuffisantes pour générer le graphique")
+                
+            else:
+                st.info("📭 Aucun mouvement trouvé pour les critères sélectionnés")
+                
+                # Suggestions
+                st.caption("Suggestions :")
+                st.caption("• Élargissez la période de recherche")
+                st.caption("• Vérifiez les filtres appliqués")
+                st.caption("• Effectuez des mouvements de stock pour alimenter l'historique")
+                
+        except Exception as e:
+            st.error(f"❌ Erreur lors de la récupération de l'historique: {str(e)}")
+            st.info("Assurez-vous que la fonction `get_mouvements()` est bien implémentée dans database.py")
+
     
     # ============================================
     # TAB 4 : INVENTAIRE PHYSIQUE
@@ -634,230 +773,5 @@ def show():
 # Test de la page
 if __name__ == "__main__":
     show()
-#=======
-        # Filtres avancés
-    with st.expander("🔍 Filtres avancés", expanded=True):
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                # Période
-                periode = st.selectbox(
-                    "Période",
-                    ["7 derniers jours", "30 derniers jours", "3 derniers mois", "Personnalisée", "Toutes"],
-                    key="hist_periode"
-                )
-                
-                # Dates personnalisées
-                if periode == "Personnalisée":
-                    date_debut = st.date_input("Date début")
-                    date_fin = st.date_input("Date fin")
-                else:
-                    date_debut = None
-                    date_fin = None
-            
-            with col2:
-                # Type de mouvement
-                type_mouvement = st.selectbox(
-                    "Type de mouvement",
-                    ["Tous", "entree", "sortie", "ajustement", "inventaire"],
-                    key="hist_type"
-                )
-                
-                # Utilisateur
-                utilisateur = st.text_input(
-                    "Utilisateur",
-                    placeholder="Filtrer par utilisateur...",
-                    key="hist_user"
-                )
-            
-            with col3:
-                # Produit
-                produits = database.get_all_produits()
-                produits_liste = ["Tous"] + [f"{p['id']} - {p['nom']}" for p in produits]
-                produit_filtre = st.selectbox(
-                    "Produit", 
-                    produits_liste,
-                    key="hist_produit"
-                )
-                
-                # Limite de résultats
-                limite = st.number_input(
-                    "Nombre max de résultats",
-                    min_value=10,
-                    max_value=1000,
-                    value=100,
-                    step=10,
-                    key="hist_limit"
-                )
-        
-        # Boutons d'action
-    col_btn1, col_btn2, col_btn3 = st.columns([2, 1, 1])
-    with col_btn1:
-            if st.button("🔍 Appliquer les filtres", type="primary", use_container_width=True):
-                st.rerun()
-        
-    with col_btn2:
-            if st.button("📥 Exporter", use_container_width=True):
-                st.info("Export en cours de développement...")
-        
-    with col_btn3:
-            if st.button("🔄 Actualiser", use_container_width=True):
-                st.rerun()
-        
-    st.markdown("---")
-        
-        # Préparation des filtres pour la base de données
-    filtres = {'limit': limite}
-        
-        # Gestion de la période
-    from datetime import datetime, timedelta
-    aujourdhui = datetime.now()
-        
-    if periode == "7 derniers jours":
-            filtres['date_debut'] = (aujourdhui - timedelta(days=7)).strftime('%Y-%m-%d')
-    elif periode == "30 derniers jours":
-            filtres['date_debut'] = (aujourdhui - timedelta(days=30)).strftime('%Y-%m-%d')
-    elif periode == "3 derniers mois":
-            filtres['date_debut'] = (aujourdhui - timedelta(days=90)).strftime('%Y-%m-%d')
-    elif periode == "Personnalisée" and date_debut and date_fin:
-            filtres['date_debut'] = date_debut.strftime('%Y-%m-%d')
-            filtres['date_fin'] = date_fin.strftime('%Y-%m-%d')
-        
-        # Autres filtres
-    if type_mouvement != "Tous":
-            filtres['type_mouvement'] = type_mouvement
-        
-    if produit_filtre != "Tous":
-            produit_id = int(produit_filtre.split(" - ")[0])
-            filtres['produit_id'] = produit_id
-        
-    if utilisateur:
-            filtres['utilisateur'] = utilisateur
-        
-        # Récupération des mouvements
-    try:
-            mouvements = database.get_mouvements(filtres)
-            
-            if mouvements:
-                # Conversion en DataFrame pour l'affichage
-                df_mouvements = pd.DataFrame(mouvements)
-                
-                # Formatage des dates
-                if 'date_mouvement' in df_mouvements.columns:
-                    df_mouvements['date_mouvement'] = pd.to_datetime(df_mouvements['date_mouvement'])
-                    df_mouvements['date_formatee'] = df_mouvements['date_mouvement'].dt.strftime('%d/%m/%Y %H:%M')
-                
-                # Ajout d'une colonne pour l'icône du type
-                def get_icon_mouvement(type_mvt):
-                    icons = {
-                        'entree': '📥',
-                        'sortie': '📤',
-                        'ajustement': '🔄',
-                        'inventaire': '📊',
-                        'annulation': '🗑️'
-                    }
-                    return icons.get(type_mvt, '📝')
-                
-                df_mouvements['icone'] = df_mouvements['type'].apply(get_icon_mouvement)
-                
-                # Calcul des statistiques
-                total_entrees = df_mouvements[df_mouvements['type'] == 'entree']['quantite'].sum()
-                total_sorties = df_mouvements[df_mouvements['type'] == 'sortie']['quantite'].sum()
-                solde_net = total_entrees - total_sorties
-                
-                # Affichage des statistiques
-                col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-                with col_stat1:
-                    st.metric("Mouvements", len(df_mouvements))
-                with col_stat2:
-                    st.metric("Entrées", f"{total_entrees} unités")
-                with col_stat3:
-                    st.metric("Sorties", f"{total_sorties} unités")
-                with col_stat4:
-                    st.metric("Solde net", f"{solde_net} unités", delta=f"{solde_net:+d}")
-                
-                st.markdown("---")
-                
-                # Affichage du tableau des mouvements
-                st.subheader("📄 Détail des mouvements")
-                
-                # Sélection des colonnes à afficher
-                columns_config = {
-                    "icone": " ",
-                    "date_formatee": "Date",
-                    "produit_nom": "Produit",
-                    "type": "Type",
-                    "quantite": "Quantité",
-                    "quantite_avant": "Avant",
-                    "quantite_apres": "Après",
-                    "motif": "Motif",
-                    "utilisateur": "Utilisateur"
-                }
-                
-                # Filtrer les colonnes existantes
-                existing_columns = {k: v for k, v in columns_config.items() 
-                                  if k in df_mouvements.columns}
-                
-                # Affichage avec configuration
-                st.dataframe(
-                    df_mouvements[list(existing_columns.keys())],
-                    column_config=existing_columns,
-                    use_container_width=True,
-                    height=400
-                )
-                
-                # Options d'export
-                with st.expander("💾 Options d'export"):
-                    col_exp1, col_exp2 = st.columns(2)
-                    with col_exp1:
-                        if st.button("📊 Exporter en CSV", use_container_width=True):
-                            csv = df_mouvements.to_csv(index=False, encoding='utf-8-sig')
-                            st.download_button(
-                                label="Télécharger CSV",
-                                data=csv,
-                                file_name=f"historique_mouvements_{datetime.now().strftime('%Y%m%d')}.csv",
-                                mime="text/csv"
-                            )
-                    
-                    with col_exp2:
-                        if st.button("📈 Exporter en Excel", use_container_width=True):
-                            excel_path = f"historique_mouvements_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
-                            df_mouvements.to_excel(excel_path, index=False)
-                            st.success(f"Exporté vers: {excel_path}")
-                
-                # Graphique d'évolution
-                st.markdown("---")
-                st.subheader("📈 Évolution des mouvements")
-                
-                if 'date_mouvement' in df_mouvements.columns:
-                    # Préparation des données pour le graphique
-                    df_graph = df_mouvements.copy()
-                    df_graph['date'] = df_graph['date_mouvement'].dt.date
-                    
-                    # Agrégation par date et type
-                    df_agg = df_graph.groupby(['date', 'type']).agg({
-                        'quantite': 'sum'
-                    }).reset_index()
-                    
-                    # Pivot pour avoir les types en colonnes
-                    df_pivot = df_agg.pivot(index='date', columns='type', values='quantite').fillna(0)
-                    
-                    # Affichage du graphique
-                    if not df_pivot.empty:
-                        st.line_chart(df_pivot)
-                    else:
-                        st.info("Données insuffisantes pour générer le graphique")
-                
-            else:
-                st.info("📭 Aucun mouvement trouvé pour les critères sélectionnés")
-                
-                # Suggestions
-                st.caption("Suggestions :")
-                st.caption("• Élargissez la période de recherche")
-                st.caption("• Vérifiez les filtres appliqués")
-                st.caption("• Effectuez des mouvements de stock pour alimenter l'historique")
-                
-    except Exception as e:
-            st.error(f"❌ Erreur lors de la récupération de l'historique: {str(e)}")
-            st.info("Assurez-vous que la fonction `get_mouvements()` est bien implémentée dans database.py")
-#>>>>>>> 61c4ca53d8b09c69e3cb947224eea52fc1fc7fea
+
+

@@ -251,7 +251,7 @@ def show_login_page():
                 with col_a:
                     remember = st.checkbox("Se souvenir de moi")
                 with col_b:
-                    st.markdown("[Mot de passe oublié ?](#)")
+                    st.markdown("[ ](#)")
                 
                 submit = st.form_submit_button("🚀 Se connecter", use_container_width=True)
                 

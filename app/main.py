@@ -86,7 +86,7 @@ def show_sidebar():
         if st.session_state.user.get('role') == 'admin':
             menu_items.append("⚙️ Paramètres")
             menu_items.append("👥 Gestion Utilisateurs")
-        
+            
         page = st.radio(
             "**MENU PRINCIPAL**",
             menu_items,
@@ -102,7 +102,7 @@ def show_sidebar():
             with col1: 
                 st.metric("Produits", stats['total_produits'])
             with col2: 
-                st.metric("Valeur", f"{stats['valeur_totale']:,.0f} €")
+                st.metric("Valeur", f"{stats['valeur_totale']:,.0f} DH")
             st.metric("⚠️ Alertes", stats['alertes'])
         except Exception as e:
             st.error(f"Erreur stats: {e}")
@@ -172,6 +172,7 @@ def main():
         st.error(f"❌ Erreur d'exécution: {e}")
         import traceback
         st.code(traceback.format_exc())
+
 
 if __name__ == "__main__":
     main()

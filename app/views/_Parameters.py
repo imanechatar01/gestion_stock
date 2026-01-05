@@ -66,24 +66,35 @@ def show():
             if categories:
                 # Affichage en tags colorés
                 for cat in categories:
-                    st.markdown(
-                        f"""
-                        <div style="
-                            background-color: {cat['couleur']}20;
-                            border: 1px solid {cat['couleur']};
-                            padding: 10px;
-                            border-radius: 8px;
-                            margin-bottom: 8px;
-                            display: flex;
-                            align-items: center;
-                            gap: 10px;
-                        ">
-                            <div style="width: 20px; height: 20px; background-color: {cat['couleur']}; border-radius: 50%;"></div>
-                            <span style="font-weight: bold; font-size: 16px;">{cat['nom']}</span>
-                        </div>
-                        """, 
-                        unsafe_allow_html=True
-                    )
+                    c1, c2 = st.columns([4, 1])
+                    with c1:
+                        st.markdown(
+                            f"""
+                            <div style="
+                                background-color: {cat['couleur']}20;
+                                border: 1px solid {cat['couleur']};
+                                padding: 10px;
+                                border-radius: 8px;
+                                margin-bottom: 8px;
+                                display: flex;
+                                align-items: center;
+                                gap: 10px;
+                            ">
+                                <div style="width: 20px; height: 20px; background-color: {cat['couleur']}; border-radius: 50%;"></div>
+                                <span style="font-weight: bold; font-size: 16px;">{cat['nom']}</span>
+                            </div>
+                            """, 
+                            unsafe_allow_html=True
+                        )
+                    with c2:
+                         if st.button("🗑️", key=f"del_cat_{cat['id']}", help="Supprimer la catégorie et ses produits"):
+                            # Confirmation via session state ou direct (ici direct pour simplicité, avec warning clair dans le help)
+                            try:
+                                database.delete_categorie(cat['id'])
+                                st.success(f"Catégorie '{cat['nom']}' supprimée !")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erreur: {e}")
             else:
                 st.info("Aucune catégorie définie.")
 

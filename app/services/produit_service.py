@@ -92,7 +92,7 @@ def show():
                     [f['nom'] for f in database.get_all_fournisseurs()]
                 )
                 quantite = st.number_input("Quantité", min_value=0, value=0)
-                prix_vente = st.number_input("Prix de vente (€)", min_value=0.0, value=0.0, step=0.5)
+                prix_vente = st.number_input("Prix de vente (DH)", min_value=0.0, value=0.0, step=0.5)
             
             description = st.text_area("Description", height=50)
             submitted = st.form_submit_button("Ajouter")
@@ -150,7 +150,7 @@ def show():
                                 <h5>{p['nom']}<small> ({p['reference']})</small></h5>
                                 <p><b>Catégorie:</b> {p['categorie_nom'] or '—'}</p>
                                 <p><b>Fournisseur:</b> {p['fournisseur_nom'] or '—'}</p>
-                                <p><b>Quantité:</b> {p['quantite']} | <b>Prix Vente:</b> {p['prix_vente']} €</p>
+                                <p><b>Quantité:</b> {p['quantite']} | <b>Prix Vente:</b> {p['prix_vente']} DH</p>
                                 <p>{p['description']}</p>
                             </div>
                         </div>

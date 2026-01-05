@@ -5,7 +5,7 @@ import plotly.express as px
 from models import database
 
 def show():
-    st.title("🏠 Tableau de Bord")
+    st.title("")
     
     # Statistiques
     stats = database.get_statistiques()
@@ -16,7 +16,7 @@ def show():
     with col1:
         st.metric("📦 Produits", stats['total_produits'])
     with col2:
-        st.metric("💰 Valeur", f"{stats['valeur_totale']:,.0f} €")
+        st.metric("💰 Valeur", f"{stats['valeur_totale']:,.0f} DH")
     with col3:
         st.metric("⚠️ Alertes", stats['alertes'])
     with col4:
@@ -32,14 +32,20 @@ def show():
         produits = database.get_produits_dataframe()
         
         if not produits.empty and 'categorie_nom' in produits.columns:
-            categories = produits['categorie_nom'].value_counts()
+            # Préparer les données avec les couleurs
+            df_cat = produits.groupby(['categorie_nom', 'categorie_couleur']).size().reset_index(name='count')
+            
+            # Créer le mapping de couleurs {Nom: Couleur}
+            color_map = dict(zip(df_cat['categorie_nom'], df_cat['categorie_couleur']))
             
             fig = px.pie(
-                values=categories.values,
-                names=categories.index,
+                df_cat,
+                values='count',
+                names='categorie_nom',
                 title="Répartition par catégorie",
                 hole=0.4,
-                color_discrete_sequence=px.colors.qualitative.Pastel
+                color='categorie_nom',
+                color_discrete_map=color_map
             )
             fig.update_layout(showlegend=True, legend=dict(orientation="h"))
             st.plotly_chart(fig, use_container_width=True)
@@ -63,7 +69,7 @@ def show():
                 color_continuous_scale='Blues'
             )
             fig_bar.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False)
-            fig_bar.update_traces(texttemplate='%{text:.0f} €', textposition='outside')
+            fig_bar.update_traces(texttemplate='%{text:.0f} DH', textposition='outside')
             st.plotly_chart(fig_bar, use_container_width=True)
         else:
             st.info("Pas assez de données.")
@@ -112,17 +118,13 @@ def show():
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("➕ Ajouter un produit", use_container_width=True):
-            st.switch_page("views/_Produits.py")
-    
+        st.button("➕ Ajouter un produit", on_click=lambda: st.session_state.update(main_navigation="📦 Gestion Produits"), use_container_width=True)
+
     with col2:
-        if st.button("📥 Entrée de stock", use_container_width=True):
-            st.switch_page("views/_Inventaire.py")
+        st.button("📥 Entrée de stock", on_click=lambda: st.session_state.update(main_navigation="📊 Inventaire & Stock", inventory_default_tab="entrees"), use_container_width=True)
     
     with col3:
-        if st.button("📤 Sortie de stock", use_container_width=True):
-            st.switch_page("views/_Inventaire.py")
+        st.button("📤 Sortie de stock", on_click=lambda: st.session_state.update(main_navigation="📊 Inventaire & Stock", inventory_default_tab="sorties"), use_container_width=True)
             
     with col4:
-        if st.button("👥 Fournisseurs", use_container_width=True):
-            st.switch_page("views/_Fournisseurs.py")
+        st.button("👥 Fournisseurs", on_click=lambda: st.session_state.update(main_navigation="👥 Fournisseurs"), use_container_width=True)

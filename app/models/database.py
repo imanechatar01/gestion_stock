@@ -228,6 +228,26 @@ def add_categorie(nom, couleur="#3B82F6"):
     cursor = execute_query("INSERT INTO categories (nom, couleur) VALUES (?, ?)", (nom, couleur))
     return cursor.lastrowid
 
+def delete_categorie(categorie_id):
+    """Supprime une catégorie et TOUS ses produits associés"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # 1. Supprimer d'abord les produits de cette catégorie
+        cursor.execute("DELETE FROM produits WHERE categorie_id = ?", (categorie_id,))
+        
+        # 2. Supprimer la catégorie
+        cursor.execute("DELETE FROM categories WHERE id = ?", (categorie_id,))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erreur suppression catégorie: {e}")
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
 # ============================================================================
 # FONCTIONS PRODUITS
 # ============================================================================
@@ -263,6 +283,26 @@ def get_produits_dataframe():
 def get_produit_by_id(produit_id):
     """Récupère un produit par son ID"""
     return fetch_one("SELECT * FROM produits WHERE id = ?", (produit_id,))
+
+def delete_produit(produit_id):
+    """Supprime un produit et ses mouvements associés"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # 1. Supprimer les mouvements
+        cursor.execute("DELETE FROM mouvements WHERE produit_id = ?", (produit_id,))
+        
+        # 2. Supprimer le produit
+        cursor.execute("DELETE FROM produits WHERE id = ?", (produit_id,))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erreur suppression produit: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
 
 def add_produit(produit_data):
     """

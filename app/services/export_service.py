@@ -96,7 +96,7 @@ def export_produits_excel():
             'Valeur': [
                 datetime.now().strftime('%Y-%m-%d %H:%M'),
                 len(produits),
-                f"{(df_all['quantite'] * df_all['prix_vente']).sum():.2f} €"
+                f"{(df_all['quantite'] * df_all['prix_vente']).sum():.2f} DH"
             ]
         })
         metadata.to_excel(writer, sheet_name='Métadonnées', index=False)
@@ -196,7 +196,7 @@ def export_rapport_complet():
                 for cat, row in cat_stats.iterrows():
                     stats_data.append([f"Catégorie: {cat}", f"{row['id']} produits"])
                     stats_data.append([f"  Stock total", f"{row['quantite']} unités"])
-                    stats_data.append([f"  Valeur", f"{row['prix_vente']:.2f} €"])
+                    stats_data.append([f"  Valeur", f"{row['prix_vente']:.2f} DH"])
         
         df_stats = pd.DataFrame(stats_data, columns=['Indicateur', 'Valeur'])
         df_stats.to_excel(writer, sheet_name='Statistiques', index=False)
@@ -226,8 +226,8 @@ def export_rapport_complet():
             ['Nombre de fournisseurs', len(fournisseurs) if fournisseurs else 0],
             ['', ''],
             ['⚠️ Produits en alerte', len(produits_alerte) if 'produits_alerte' in locals() else 0],
-            ['📦 Valeur stock totale', f"{(df_prod['quantite'] * df_prod['prix_vente']).sum():.2f} €" 
-             if produits and 'df_prod' in locals() else '0 €']
+            ['📦 Valeur stock totale', f"{(df_prod['quantite'] * df_prod['prix_vente']).sum():.2f} DH" 
+             if produits and 'df_prod' in locals() else '0 DH']
         ]
         
         df_synthèse = pd.DataFrame(synthèse_data, columns=['Élément', 'Valeur'])
@@ -350,7 +350,7 @@ def export_inventaire_pdf_format():
                 </tr>
                 <tr>
                     <td><strong>Valeur des écarts:</strong></td>
-                    <td>________________ €</td>
+                    <td>________________ DH</td>
                 </tr>
                 <tr>
                     <td><strong>Date de clôture:</strong></td>
