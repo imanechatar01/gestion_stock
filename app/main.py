@@ -178,7 +178,7 @@ def main():
             show()
             
         elif current_page == "⚠️ Alertes":
-            from views._Alertes import show
+            from views._alertes import show
             show()
             
         elif current_page == "⚙️ Paramètres":

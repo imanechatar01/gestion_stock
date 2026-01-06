@@ -8,70 +8,169 @@ import time
 
 def show():
     """
-    Page de gestion des alertes et notifications
+    Page de gestion des alertes pour les produits - Version Premium
     """
     
-    # Titre avec indicateur en temps réel
+    # CSS Personnalisé pour un look Premium
     st.markdown("""
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
-        <div>
-            <h1 style="margin: 0;">⚠️ Gestion des Alertes</h1>
-            <p style="color: #666; margin: 5px 0 0 0;">Surveillance intelligente du stock en temps réel</p>
-        </div>
-        <div id="alert-badge" style="background: #ef4444; color: white; padding: 10px 20px; border-radius: 25px; font-weight: bold; font-size: 24px;">
-            <!-- Le badge sera mis à jour via JavaScript -->
-            0
-        </div>
-    </div>
+        <style>
+        .main-header {
+          padding: 2rem;
+            border-radius: 20px;
+            color: white;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .stats-container {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1.5rem;
+            border-radius: 15px;
+            flex: 1;
+            text-align: center;
+        }
+        .alert-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 8px solid #ddd;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+            height: 100%;
+        }
+        .alert-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+        .status-rupture { background: #fee2e2; color: #dc2626; border-left-color: #dc2626; }
+        .status-critique { background: #ffedd5; color: #f97316; border-left-color: #f97316; }
+        .status-alerte { background: #fef3c7; color: #d97706; border-left-color: #d97706; }
+        
+        .product-info h4 { margin: 0; color: #1f2937; }
+        .product-info p { margin: 4px 0 0 0; color: #6b7280; font-size: 0.9rem; }
+        
+        .stock-tag {
+            background: #f3f4f6;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: #4b5563;
+        }
+        </style>
     """, unsafe_allow_html=True)
     
-    # JavaScript pour actualiser le badge
+    # Header Premium
     st.markdown("""
-    <script>
-    function updateAlertBadge() {
-        fetch('/reload?force=true')
-            .then(() => {
-                // Simuler un compteur pour la démo
-                const badge = document.getElementById('alert-badge');
-                const current = parseInt(badge.textContent);
-                if (current < 5) {
-                    badge.textContent = current + 1;
-                    badge.style.background = current >= 3 ? '#ef4444' : '#f59e0b';
-                }
-            });
-    }
-    // Mettre à jour toutes les 30 secondes
-    setInterval(updateAlertBadge, 30000);
-    </script>
+       
     """, unsafe_allow_html=True)
     
-    # Initialisation de la session state pour les alertes traitées
-    if 'alertes_traitees' not in st.session_state:
-        st.session_state.alertes_traitees = set()
-    
-    # Onglets principaux
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📊 Tableau de Bord",
-        "📋 Alertes Actives", 
-        "📈 Historique",
-        "⚙️ Configuration"
-    ])
-    
-    # TAB 1: Tableau de bord des alertes
-    with tab1:
-        display_tableau_de_bord()
-    
-    # TAB 2: Alertes actives
-    with tab2:
-        display_alertes_actives()
-    
-    # TAB 3: Historique
-    with tab3:
-        display_historique_alertes()
-    
-    # TAB 4: Configuration
-    with tab4:
-        display_configuration_alertes()
+    try:
+        produits_alerte = database.get_produits_en_alerte()
+        
+        if not produits_alerte:
+            st.success("🎉 Tous les stocks sont optimaux !")
+            st.balloons()
+            return
+
+        # Récupération des statistiques depuis la base
+        stats_data = database.get_alertes_stats()
+        ruptures = stats_data['ruptures']
+        critiques = stats_data['critiques']
+        alertes = stats_data['alertes']
+
+        # Affichage des métriques stylisées
+        m1, m2, m3 = st.columns(3)
+        with m1:
+            st.markdown(f"""
+<div class="stat-card" style="border-top: 4px solid #dc2626;">
+<h3 style="margin:0; color:#dc2626;">{ruptures}</h3>
+<p style="margin:0; font-size:0.8rem; opacity:0.7;">Ruptures</p>
+</div>
+""", unsafe_allow_html=True)
+        with m2:
+            st.markdown(f"""
+<div class="stat-card" style="border-top: 4px solid #f97316;">
+<h3 style="margin:0; color:#f97316;">{critiques}</h3>
+<p style="margin:0; font-size:0.8rem; opacity:0.7;">Critiques</p>
+</div>
+""", unsafe_allow_html=True)
+        with m3:
+            st.markdown(f"""
+<div class="stat-card" style="border-top: 4px solid #d97706;">
+<h3 style="margin:0; color:#d97706;">{alertes}</h3>
+<p style="margin:0; font-size:0.8rem; opacity:0.7;">Alertes</p>
+</div>
+""", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Liste des produits en grille
+        cols_per_row = 2
+        for i in range(0, len(produits_alerte), cols_per_row):
+            cols = st.columns(cols_per_row)
+            for j, produit in enumerate(produits_alerte[i:i+cols_per_row]):
+                with cols[j]:
+                    stock_actuel = produit.get('quantite', 0)
+                    seuil_min = produit.get('seuil_min', 0)
+                    prix = produit.get('prix_vente', 0)
+                    
+                    # Détermination du statut
+                    if stock_actuel == 0:
+                        cls = "status-rupture"
+                        status_label = "Rupture"
+                        color = "#dc2626"
+                    elif stock_actuel <= seuil_min * 0.5:
+                        cls = "status-critique"
+                        status_label = "Critique"
+                        color = "#f97316"
+                    else:
+                        cls = "status-alerte"
+                        status_label = "Alerte"
+                        color = "#d97706"
+
+                    # Rendu de la carte sans bouton (Nettoyage complet de l'indentation pour éviter le bloc code)
+                    st.markdown(f"""
+<div class="alert-card" style="border-left-color: {color};">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+<div class="product-info">
+<h4 style="margin:0; font-size: 1.2rem;">{produit['nom']}</h4>
+<p style="margin:2px 0; color: #6b7280;">{produit.get('categorie_nom', 'Sans catégorie')}</p>
+<p style="margin:2px 0; font-size: 0.8rem; color: #9ca3af;">REF: {produit.get('reference', 'N/A')}</p>
+</div>
+<span class="status-badge {cls}" style="font-size: 0.7rem; padding: 0.3rem 0.6rem;">{status_label}</span>
+</div>
+<div style="margin: 1rem 0; display: flex; flex-wrap: wrap; gap: 8px;">
+<span class="stock-tag">Prix: {prix:.2f} DH</span>
+<span class="stock-tag">Valeur: {(stock_actuel * prix):.2f} DH</span>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #f3f4f6; padding-top: 0.8rem;">
+<div style="font-size: 0.8rem; color: #6b7280;">Stock disponible</div>
+<div style="text-align: right;">
+<div style="font-weight: bold; font-size: 1.4rem; color: #374151;">{stock_actuel} <span style="font-size: 0.8rem; font-weight: normal; color: #9ca3af;">unités</span></div>
+<div style="font-size: 0.75rem; color: #9ca3af;">Seuil min: {seuil_min}</div>
+</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"❌ Erreur de rendu: {e}")
+        import traceback
+        st.code(traceback.format_exc())
 
 # Remplacer get_alertes_stock() par :
 def get_alertes_stock():
@@ -133,15 +232,8 @@ def get_alertes_date_expiration():
 def get_alertes_mouvements():
     """Simule les alertes de mouvements inhabituels"""
     try:
-        # Récupérer les mouvements récents
-        mouvements = database.fetch_all("""
-            SELECT m.*, p.nom as produit_nom
-            FROM mouvements m
-            JOIN produits p ON m.produit_id = p.id
-            WHERE m.date_mouvement > DATE('now', '-7 days')
-            ORDER BY m.date_mouvement DESC
-            LIMIT 50
-        """) or []
+        # Récupérer les mouvements récents via la fonction dédiée
+        mouvements = database.get_alertes_mouvements_data(jours=7, limit=50) or []
         
         alertes = []
         
@@ -328,13 +420,7 @@ def display_tableau_de_bord():
             st.markdown("##### 📦 Produits à surveiller")
             
             try:
-                produits_faible_stock = database.fetch_all("""
-                    SELECT nom, quantite, seuil_min 
-                    FROM produits 
-                    WHERE quantite <= seuil_min * 1.5
-                    ORDER BY quantite/seuil_min
-                    LIMIT 5
-                """) or []
+                produits_faible_stock = database.get_produits_risque_imminent(limit=5) or []
                 
                 if produits_faible_stock:
                     for prod in produits_faible_stock:
@@ -412,49 +498,28 @@ def display_carte_alerte(alerte, compact=False):
         # Version détaillée
         with st.container():
             st.markdown(f"""
-            <div style="
-                background: {style['bg']};
-                border: 2px solid {style['border']};
-                border-radius: 10px;
-                padding: 15px;
-                margin: 10px 0;
-            ">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">{icon}</span>
-                        <div>
-                            <h3 style="margin: 0; color: {style['text']};">{alerte['titre']}</h3>
-                            <p style="margin: 5px 0; color: #666;">{alerte['description']}</p>
-                        </div>
-                    </div>
-                    <span style="
-                        background: {style['border']};
-                        color: white;
-                        padding: 5px 15px;
-                        border-radius: 20px;
-                        font-weight: bold;
-                        font-size: 12px;
-                    ">{alerte['urgence']}</span>
-                </div>
-                
-                <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-size: 12px; color: #666;">
-                        <span>🔍 {alerte.get('categorie', 'Non catégorisé')}</span>
-                        <span style="margin-left: 15px;">📅 {datetime.fromisoformat(alerte['date_detection']).strftime('%d/%m/%Y %H:%M')}</span>
-                    </div>
-                    
-                    <div>
-                        <span style="
-                            background: #3b82f6;
-                            color: white;
-                            padding: 5px 15px;
-                            border-radius: 5px;
-                            font-size: 12px;
-                        ">Action requise: {alerte['action_requise']}</span>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+<div style="background: {style['bg']}; border: 2px solid {style['border']}; border-radius: 10px; padding: 15px; margin: 10px 0;">
+<div style="display: flex; justify-content: space-between; align-items: center;">
+<div style="display: flex; align-items: center; gap: 10px;">
+<span style="font-size: 24px;">{icon}</span>
+<div>
+<h3 style="margin: 0; color: {style['text']};">{alerte['titre']}</h3>
+<p style="margin: 5px 0; color: #666;">{alerte['description']}</p>
+</div>
+</div>
+<span style="background: {style['border']}; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 12px;">{alerte['urgence']}</span>
+</div>
+<div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+<div style="font-size: 12px; color: #666;">
+<span>🔍 {alerte.get('categorie', 'Non catégorisé')}</span>
+<span style="margin-left: 15px;">📅 {datetime.fromisoformat(alerte['date_detection']).strftime('%d/%m/%Y %H:%M')}</span>
+</div>
+<div>
+<span style="background: #3b82f6; color: white; padding: 5px 15px; border-radius: 5px; font-size: 12px;">Action requise: {alerte['action_requise']}</span>
+</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
             
             # Actions
             col_action1, col_action2, col_action3, col_action4 = st.columns(4)

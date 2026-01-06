@@ -718,3 +718,116 @@ def export_to_excel(filename=None):
     
     logger.info(f"✅ Export Excel créé: {filename}")
     return filename
+
+def get_alertes_mouvements_data(jours=7, limit=50):
+    """Récupère les mouvements importants récents pour les alertes"""
+    return fetch_all("""
+        SELECT m.*, p.nom as produit_nom
+        FROM mouvements m
+        JOIN produits p ON m.produit_id = p.id
+        WHERE m.date_mouvement > DATE('now', ?)
+        AND (m.quantite > 100 OR m.type = 'sortie')
+        ORDER BY m.date_mouvement DESC
+        LIMIT ?
+    """, (f'-{jours} days', limit))
+
+def get_produits_risque_imminent(limit=5):
+    """Récupère les produits dont le stock est proche du seuil minimum"""
+    return fetch_all("""
+        SELECT nom, quantite, seuil_min 
+        FROM produits 
+        WHERE quantite <= seuil_min * 1.5
+        ORDER BY (CAST(quantite AS FLOAT) / CAST(seuil_min AS FLOAT)) ASC
+        LIMIT ?
+    """, (limit,))
+
+def get_alertes_stats():
+    """Récupère les statistiques d'alertes simplifiées"""
+    produits = fetch_all("""
+        SELECT quantite, seuil_min FROM produits 
+        WHERE quantite <= seuil_min
+    """)
+    
+    ruptures = 0
+    critiques = 0
+    alertes = 0
+    
+    for p in produits:
+        qte = p['quantite']
+        seuil = p['seuil_min']
+        if qte == 0:
+            ruptures += 1
+        elif qte <= seuil * 0.5:
+            critiques += 1
+        else:
+            alertes += 1
+            
+    return {
+        'ruptures': ruptures,
+        'critiques': critiques,
+        'alertes': alertes,
+        'total': ruptures + critiques + alertes
+    }
+
+def get_all_users():
+    """Récupère tous les utilisateurs de la base"""
+    return fetch_all("""
+        SELECT 
+            id, username, email, full_name, role, 
+            permissions, created_at, last_login, is_active
+        FROM users
+        ORDER BY created_at DESC
+    """)
+
+def update_user_field(user_id, field, value):
+    """Met à jour un champ spécifique d'un utilisateur"""
+    # Liste blanche des champs autorisés pour la sécurité
+    allowed_fields = ['is_active', 'role', 'permissions', 'password_hash']
+    if field not in allowed_fields:
+        raise ValueError(f"Champ '{field}' non autorisé pour la mise à jour")
+        
+    return execute_query(
+        f"UPDATE users SET {field} = ? WHERE id = ?",
+        (value, user_id)
+    )
+
+def delete_user(user_id):
+    """Supprime un utilisateur de la base"""
+    return execute_query("DELETE FROM users WHERE id = ?", (user_id,))
+
+def get_user_metrics():
+    """Récupère les statistiques des utilisateurs"""
+    total = fetch_all("SELECT COUNT(*) as count FROM users")[0]['count']
+    actifs = fetch_all("SELECT COUNT(*) as count FROM users WHERE is_active = 1")[0]['count']
+    admins = fetch_all("SELECT COUNT(*) as count FROM users WHERE role = 'admin'")[0]['count']
+    connectes = fetch_all("SELECT COUNT(*) as count FROM users WHERE last_login IS NOT NULL")[0]['count']
+    
+    return {
+        'total': total,
+        'actifs': actifs,
+        'admins': admins,
+        'connectes': connectes
+    }
+
+def get_login_activity_data(days=7):
+    """Récupère les activités de connexion agrégées par date"""
+    return fetch_all("""
+        SELECT 
+            DATE(timestamp) as date,
+            COUNT(*) as tentatives,
+            SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as succes
+        FROM login_attempts
+        WHERE timestamp >= date('now', ?)
+        GROUP BY DATE(timestamp)
+        ORDER BY date
+    """, (f'-{days} days',))
+
+def get_recent_successful_logins(limit=10):
+    """Récupère les dernières connexions réussies"""
+    return fetch_all("""
+        SELECT username, timestamp
+        FROM login_attempts
+        WHERE success = 1
+        ORDER BY timestamp DESC
+        LIMIT ?
+    """, (limit,))

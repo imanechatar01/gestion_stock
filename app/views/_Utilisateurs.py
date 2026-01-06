@@ -1,8 +1,8 @@
 # views/_Users.py - Page de gestion des utilisateurs (Admin)
 import streamlit as st
-import sqlite3
 import pandas as pd
 from datetime import datetime
+from models import database
 
 def show():
     """Page de gestion des employés - Réservée aux administrateurs"""
@@ -23,25 +23,9 @@ def show():
     with tab1:
         st.markdown("#### Liste de tous les employés")
         
-        conn = sqlite3.connect("stock.db")
-        
-        # Récupérer les utilisateurs
-        query = """
-            SELECT 
-                id,
-                username,
-                email,
-                full_name,
-                role,
-                permissions,
-                created_at,
-                last_login,
-                is_active
-            FROM users
-            ORDER BY created_at DESC
-        """
-        
-        df = pd.read_sql_query(query, conn)
+        # Récupérer les utilisateurs via la couche database
+        users = database.get_all_users()
+        df = pd.DataFrame(users)
         
         if df.empty:
             st.info("Aucun utilisateur trouvé")
@@ -99,12 +83,7 @@ def show():
                 st.markdown("##### Actions disponibles")
                 
                 if st.button("🔄 Activer/Désactiver", use_container_width=True):
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        "UPDATE users SET is_active = NOT is_active WHERE id = ?",
-                        (user_id,)
-                    )
-                    conn.commit()
+                    database.update_user_field(user_id, 'is_active', not user_info['is_active'])
                     st.success("✅ Statut modifié")
                     st.rerun()
                 
@@ -114,21 +93,14 @@ def show():
                     auth = AuthManager()
                     new_hash = auth.hash_password("reset123")
                     
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        "UPDATE users SET password_hash = ? WHERE id = ?",
-                        (new_hash, user_id)
-                    )
-                    conn.commit()
+                    database.update_user_field(user_id, 'password_hash', new_hash)
                     st.success("✅ Mot de passe réinitialisé")
                 
                 if st.button("🗑️ Supprimer l'employé", use_container_width=True, type="primary"):
                     if user_info['username'] == 'admin':
                         st.error("❌ Impossible de supprimer le compte admin")
                     else:
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-                        conn.commit()
+                        database.delete_user(user_id)
                         st.success("✅ Employé supprimé")
                         st.rerun()
         
@@ -138,49 +110,29 @@ def show():
     with tab2:
         st.markdown("#### 📊 Statistiques des utilisateurs")
         
-        conn = sqlite3.connect("stock.db")
-        cursor = conn.cursor()
-        
         # Métriques
+        stats = database.get_user_metrics()
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            cursor.execute("SELECT COUNT(*) FROM users")
-            total = cursor.fetchone()[0]
-            st.metric("👥 Total utilisateurs", total)
+            st.metric("👥 Total utilisateurs", stats['total'])
         
         with col2:
-            cursor.execute("SELECT COUNT(*) FROM users WHERE is_active = 1")
-            actifs = cursor.fetchone()[0]
-            st.metric("✅ Actifs", actifs)
+            st.metric("✅ Actifs", stats['actifs'])
         
         with col3:
-            cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
-            admins = cursor.fetchone()[0]
-            st.metric("👑 Administrateurs", admins)
+            st.metric("👑 Administrateurs", stats['admins'])
         
         with col4:
-            cursor.execute("SELECT COUNT(*) FROM users WHERE last_login IS NOT NULL")
-            connectes = cursor.fetchone()[0]
-            st.metric("🔐 Déjà connectés", connectes)
+            st.metric("🔐 Déjà connectés", stats['connectes'])
         
         st.markdown("---")
         
         # Graphique des connexions récentes
         st.markdown("##### 📈 Activité récente (7 derniers jours)")
         
-        query_activity = """
-            SELECT 
-                DATE(timestamp) as date,
-                COUNT(*) as tentatives,
-                SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as succes
-            FROM login_attempts
-            WHERE timestamp >= date('now', '-7 days')
-            GROUP BY DATE(timestamp)
-            ORDER BY date
-        """
-        
-        df_activity = pd.read_sql_query(query_activity, conn)
+        activity_data = database.get_login_activity_data()
+        df_activity = pd.DataFrame(activity_data)
         
         if not df_activity.empty:
             df_activity['date'] = pd.to_datetime(df_activity['date'])
@@ -195,17 +147,8 @@ def show():
         # Dernières connexions
         st.markdown("##### 🕐 Dernières connexions réussies")
         
-        query_last = """
-            SELECT 
-                la.username,
-                la.timestamp
-            FROM login_attempts la
-            WHERE la.success = 1
-            ORDER BY la.timestamp DESC
-            LIMIT 10
-        """
-        
-        df_last = pd.read_sql_query(query_last, conn)
+        last_logins = database.get_recent_successful_logins()
+        df_last = pd.DataFrame(last_logins)
         
         if not df_last.empty:
             df_last['timestamp'] = pd.to_datetime(df_last['timestamp']).dt.strftime('%d/%m/%Y %H:%M:%S')
@@ -213,5 +156,3 @@ def show():
             st.dataframe(df_last, use_container_width=True, hide_index=True)
         else:
             st.info("Aucune connexion enregistrée")
-        
-        conn.close()
