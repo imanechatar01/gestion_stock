@@ -5,17 +5,23 @@ import pandas as pd
 from datetime import datetime
 
 def show():
-    """Page de gestion des utilisateurs - Réservée aux administrateurs"""
+    """Page de gestion des employés - Réservée aux administrateurs"""
     
-    st.markdown("### 👥 Gestion des Utilisateurs")
-    st.markdown("Gérez les comptes utilisateurs et leurs permissions")
+    st.markdown("### 👥 Gestion des Employés")
+    st.markdown("Gérez les comptes employés et leurs permissions d'accès")
     
+    col_actions, col_empty = st.columns([1, 4])
+    with col_actions:
+        if st.button("➕ Enregistrer un Employé", type="primary", use_container_width=True):
+            st.session_state.mode = 'create_user'
+            st.rerun()
+
     # Tabs
-    tab1, tab2, tab3 = st.tabs(["📋 Liste des utilisateurs", "➕ Ajouter un utilisateur", "📊 Statistiques"])
+    tab1, tab2 = st.tabs(["📋 Liste des employés", "📊 Statistiques"])
     
     # TAB 1 : Liste des utilisateurs
     with tab1:
-        st.markdown("#### Liste de tous les utilisateurs")
+        st.markdown("#### Liste de tous les employés")
         
         conn = sqlite3.connect("stock.db")
         
@@ -27,6 +33,7 @@ def show():
                 email,
                 full_name,
                 role,
+                permissions,
                 created_at,
                 last_login,
                 is_active
@@ -46,7 +53,7 @@ def show():
             
             # Renommer les colonnes
             df_display = df.copy()
-            df_display.columns = ['ID', 'Utilisateur', 'Email', 'Nom complet', 'Rôle', 'Créé le', 'Dernière connexion', 'Actif']
+            df_display.columns = ['ID', 'Employé', 'Email', 'Nom complet', 'Rôle', 'Permissions', 'Créé le', 'Dernière connexion', 'Actif']
             
             # Afficher avec style
             st.dataframe(
@@ -62,7 +69,7 @@ def show():
             st.markdown("---")
             
             # Actions sur les utilisateurs
-            st.markdown("#### ⚙️ Actions sur les utilisateurs")
+            st.markdown("#### ⚙️ Actions sur les employés")
             
             col1, col2 = st.columns(2)
             
@@ -72,7 +79,7 @@ def show():
                 user_options = [f"{uid} - {uname}" for uid, uname in zip(user_ids, usernames)]
                 
                 selected_user = st.selectbox(
-                    "Sélectionner un utilisateur",
+                    "Sélectionner un employé",
                     user_options
                 )
                 
@@ -84,6 +91,7 @@ def show():
                     **Informations:**
                     - Email: {user_info['email']}
                     - Rôle: {user_info['role']}
+                    - Permissions: {user_info['permissions'] or 'Aucune'}
                     - Statut: {'✅ Actif' if user_info['is_active'] else '❌ Inactif'}
                     """)
             
@@ -114,70 +122,20 @@ def show():
                     conn.commit()
                     st.success("✅ Mot de passe réinitialisé")
                 
-                if st.button("🗑️ Supprimer l'utilisateur", use_container_width=True, type="primary"):
+                if st.button("🗑️ Supprimer l'employé", use_container_width=True, type="primary"):
                     if user_info['username'] == 'admin':
                         st.error("❌ Impossible de supprimer le compte admin")
                     else:
                         cursor = conn.cursor()
                         cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
                         conn.commit()
-                        st.success("✅ Utilisateur supprimé")
+                        st.success("✅ Employé supprimé")
                         st.rerun()
         
         conn.close()
     
-    # TAB 2 : Ajouter un utilisateur
+    # TAB 2 : Statistiques (Redirigé depuis tab3 original)
     with tab2:
-        st.markdown("#### ➕ Créer un nouveau compte utilisateur")
-        
-        with st.form("add_user_form"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                new_username = st.text_input("👤 Nom d'utilisateur *")
-                new_email = st.text_input("📧 Email *")
-                new_fullname = st.text_input("👨‍💼 Nom complet")
-            
-            with col2:
-                new_password = st.text_input("🔒 Mot de passe *", type="password")
-                new_password_confirm = st.text_input("🔒 Confirmer *", type="password")
-                new_role = st.selectbox("👑 Rôle", ["user", "admin"])
-            
-            submit = st.form_submit_button("✨ Créer le compte", use_container_width=True)
-            
-            if submit:
-                if not all([new_username, new_email, new_password, new_password_confirm]):
-                    st.error("❌ Veuillez remplir tous les champs obligatoires")
-                elif new_password != new_password_confirm:
-                    st.error("❌ Les mots de passe ne correspondent pas")
-                else:
-                    from models.auth import AuthManager
-                    auth = AuthManager()
-                    
-                    # Créer l'utilisateur avec le rôle choisi
-                    conn = sqlite3.connect("stock.db")
-                    cursor = conn.cursor()
-                    
-                    try:
-                        password_hash = auth.hash_password(new_password)
-                        cursor.execute(
-                            """INSERT INTO users (username, email, password_hash, full_name, role) 
-                               VALUES (?, ?, ?, ?, ?)""",
-                            (new_username, new_email, password_hash, new_fullname, new_role)
-                        )
-                        conn.commit()
-                        st.success(f"✅ Compte '{new_username}' créé avec succès !")
-                        st.balloons()
-                    except sqlite3.IntegrityError as e:
-                        if "username" in str(e):
-                            st.error("❌ Ce nom d'utilisateur existe déjà")
-                        else:
-                            st.error("❌ Cet email est déjà utilisé")
-                    
-                    conn.close()
-    
-    # TAB 3 : Statistiques
-    with tab3:
         st.markdown("#### 📊 Statistiques des utilisateurs")
         
         conn = sqlite3.connect("stock.db")

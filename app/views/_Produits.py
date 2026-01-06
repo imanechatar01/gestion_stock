@@ -61,7 +61,7 @@ def show():
     if 'refresh' not in st.session_state:
         st.session_state['refresh'] = False
 
-    st.title("")
+
 
     # =======================
     # Onglets

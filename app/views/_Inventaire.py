@@ -728,47 +728,7 @@ def show():
                 else:
                     st.warning("Aucun produit disponible")
     
-    # ============================================
-    # SECTION COMMUNE : ALERTES STOCK
-    # ============================================
-    st.markdown("---")
-    
-    # Section alertes (affichée dans tous les onglets)
-    with st.expander("⚠️ **Produits nécessitant une attention**", expanded=True):
-        produits_alerte = database.get_produits_en_alerte()
-        
-        if produits_alerte:
-            st.warning(f"**{len(produits_alerte)} produits en alerte de stock**")
-            
-            for produit in produits_alerte:
-                col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-                
-                with col1:
-                    st.write(f"**{produit['nom']}**")
-                    st.caption(f"{produit['categorie_nom']}")
-                
-                with col2:
-                    st.metric(
-                        "Stock actuel",
-                        f"{produit['quantite']}",
-                        f"Seuil: {produit['seuil_min']}",
-                        delta_color="inverse"
-                    )
-                
-                with col3:
-                    # Bouton rapide pour commander
-                    if st.button("📥 Commander", key=f"cmd_{produit['id']}", use_container_width=True):
-                        st.session_state['commande_produit'] = produit['id']
-                        st.success(f"Commande initiée pour {produit['nom']}")
-                
-                with col4:
-                    # Bouton rapide pour ajuster
-                    if st.button("✏️ Ajuster", key=f"ajust_{produit['id']}", use_container_width=True):
-                        st.session_state['ajuster_produit'] = produit['id']
-                
-                st.divider()
-        else:
-            st.success("✅ Tous les produits ont un stock suffisant")
+
 
 # Test de la page
 if __name__ == "__main__":

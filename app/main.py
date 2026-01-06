@@ -74,22 +74,48 @@ def show_sidebar():
         st.markdown("---")
         
         # Menu principal
-        menu_items = [
-            "🏠 Tableau de Bord",
-            "📦 Gestion Produits", 
-            "📊 Inventaire & Stock",
-            "👥 Fournisseurs",
-            "📈 Rapports",
-        ]
+        # Menu principal avec Mapping Permission -> Label
+        menu_map = {
+            "dashboard": "🏠 Tableau de Bord",
+            "produits": "📦 Gestion Produits", 
+            "inventaire": "📊 Inventaire & Stock",
+            "fournisseurs": "👥 Fournisseurs",
+            "rapports": "📈 Rapports",
+            "alertes": "⚠️ Alertes"
+        }
         
-        # Ajouter Paramètres seulement pour les admins
-        if st.session_state.user.get('role') == 'admin':
-            menu_items.append("⚙️ Paramètres")
-            menu_items.append("👥 Gestion Utilisateurs")
+        # Récupérer les permissions de l'utilisateur
+        user_perms = st.session_state.user.get('permissions', [])
+        
+        # Si c'est une string (cas legacy ou erreur), on split
+        if isinstance(user_perms, str):
+            user_perms = user_perms.split(',')
             
+        # Admin a toujours tout (sécurité)
+        if st.session_state.user.get('role') == 'admin':
+            menu_items = list(menu_map.values())
+            menu_items.append("⚙️ Paramètres")
+            menu_items.append("👥 Gestion Employés")
+        else:
+            # Filtrer selon permissions
+            menu_items = [label for key, label in menu_map.items() if key in user_perms]
+            
+            # Fallback si aucune permission
+            if not menu_items:
+                menu_items = ["🏠 Tableau de Bord"]
+
+        # Gérer la navigation programmée
+        default_index = 0
+        if 'navigate_to' in st.session_state:
+            target = st.session_state.navigate_to
+            if target in menu_items:
+                default_index = menu_items.index(target)
+            del st.session_state.navigate_to
+
         page = st.radio(
             "**MENU PRINCIPAL**",
             menu_items,
+            index=default_index,
             key="main_navigation"
         )
         
@@ -118,6 +144,12 @@ def show_sidebar():
         return page
 
 def main():
+    # Mode Création Utilisateur (Standalone)
+    if st.session_state.get('mode') == 'create_user':
+        from views import _UserCreate
+        _UserCreate.show()
+        return
+
     current_page = show_sidebar()
     
     # Titre principal
@@ -145,6 +177,10 @@ def main():
             from views._Rapports import show
             show()
             
+        elif current_page == "⚠️ Alertes":
+            from views._Alertes import show
+            show()
+            
         elif current_page == "⚙️ Paramètres":
             # Vérifier si admin
             if st.session_state.user.get('role') != 'admin':
@@ -153,13 +189,13 @@ def main():
                 from views._Parameters import show
                 show()
         
-        elif current_page == "👥 Gestion Utilisateurs":
+        elif current_page == "👥 Gestion Employés":
             # Vérifier si admin
             if st.session_state.user.get('role') != 'admin':
                 st.error("❌ Accès refusé : réservé aux administrateurs")
             else:
-                from views._Utilisateurs import show
-                show()
+                from views import _Utilisateurs
+                _Utilisateurs.show()
             
     except ImportError as e:
         st.error(f"❌ Erreur d'import: {e}")

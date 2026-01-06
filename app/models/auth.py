@@ -26,6 +26,7 @@ class AuthManager:
                 password_hash TEXT NOT NULL,
                 full_name TEXT,
                 role TEXT DEFAULT 'user',
+                permissions TEXT DEFAULT 'dashboard,produits,inventaire,fournisseurs,rapports,alertes',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login TIMESTAMP,
                 is_active BOOLEAN DEFAULT 1
@@ -124,7 +125,7 @@ class AuthManager:
         
         password_hash = self.hash_password(password)
         cursor.execute(
-            """SELECT id, username, email, full_name, role, is_active 
+            """SELECT id, username, email, full_name, role, is_active, permissions
                FROM users WHERE username=? AND password_hash=?""",
             (username, password_hash)
         )
@@ -144,7 +145,8 @@ class AuthManager:
                 'username': user[1],
                 'email': user[2],
                 'full_name': user[3],
-                'role': user[4]
+                'role': user[4],
+                'permissions': user[6].split(',') if user[6] else []
             }
             
             conn.close()
@@ -154,7 +156,7 @@ class AuthManager:
         conn.close()
         return False, "Identifiants incorrects"
     
-    def register(self, username, email, password, full_name=""):
+    def register(self, username, email, password, full_name="", permissions=None):
         """Enregistre un nouvel utilisateur"""
         if len(username) < 3:
             return False, "Nom d'utilisateur trop court (min 3)"
@@ -169,12 +171,16 @@ class AuthManager:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # Permissions par défaut si non spécifiées
+        if permissions is None:
+            permissions = "dashboard,produits,inventaire,fournisseurs,rapports,alertes"
+
         try:
             password_hash = self.hash_password(password)
             cursor.execute(
-                """INSERT INTO users (username, email, password_hash, full_name, role) 
-                   VALUES (?, ?, ?, ?, ?)""",
-                (username, email, password_hash, full_name, "user")
+                """INSERT INTO users (username, email, password_hash, full_name, role, permissions) 
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (username, email, password_hash, full_name, "user", permissions)
             )
             conn.commit()
             conn.close()
@@ -226,114 +232,52 @@ def show_login_page():
             </div>
         """, unsafe_allow_html=True)
         
-        # Tabs pour Login / Register
-        tab1, tab2 = st.tabs(["🔐 Connexion", "📝 Inscription"])
-        
+        # Formulaire de connexion uniquement
         auth = AuthManager()
         
-        # TAB CONNEXION
-        with tab1:
-            with st.form("login_form", clear_on_submit=False):
-                st.markdown("### Connectez-vous à votre compte")
-                
-                username = st.text_input(
-                    "👤 Nom d'utilisateur",
-                    placeholder="Entrez votre nom d'utilisateur"
-                )
-                
-                password = st.text_input(
-                    "🔒 Mot de passe",
-                    type="password",
-                    placeholder="Entrez votre mot de passe"
-                )
-                
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    remember = st.checkbox("Se souvenir de moi")
-                with col_b:
-                    st.markdown("[ ](#)")
-                
-                submit = st.form_submit_button("🚀 Se connecter", use_container_width=True)
-                
-                if submit:
-                    if not username or not password:
-                        st.error("❌ Veuillez remplir tous les champs")
-                    else:
-                        success, result = auth.authenticate(username, password)
-                        
-                        if success:
-                            st.session_state.authenticated = True
-                            st.session_state.user = result
-                            st.success(f"✅ Bienvenue {result['full_name'] or result['username']} !")
-                            st.balloons()
-                            st.rerun()
-                        else:
-                            st.error(f"❌ {result}")
+        with st.form("login_form", clear_on_submit=False):
+            st.markdown("### Connectez-vous à votre compte")
             
-            # Comptes de test
-            st.info("""
-                **🧪 Comptes de test :**
-                - Admin : `admin` / `admin123`
-                - Demo : `demo` / `demo123`
-            """)
-        
-        # TAB INSCRIPTION
-        with tab2:
-            with st.form("register_form", clear_on_submit=True):
-                st.markdown("### Créer un nouveau compte")
-                
-                new_fullname = st.text_input(
-                    "👤 Nom complet",
-                    placeholder="Ex: Jean Dupont"
-                )
-                
-                new_username = st.text_input(
-                    "🆔 Nom d'utilisateur",
-                    placeholder="Ex: jdupont"
-                )
-                
-                new_email = st.text_input(
-                    "📧 Email",
-                    placeholder="exemple@email.com"
-                )
-                
-                new_password = st.text_input(
-                    "🔒 Mot de passe",
-                    type="password",
-                    placeholder="Min 6 caractères, 1 lettre, 1 chiffre",
-                    help="Le mot de passe doit contenir au moins 6 caractères, une lettre et un chiffre"
-                )
-                
-                new_password_confirm = st.text_input(
-                    "🔒 Confirmer le mot de passe",
-                    type="password",
-                    placeholder="Répétez le mot de passe"
-                )
-                
-                accept_terms = st.checkbox("J'accepte les conditions d'utilisation")
-                
-                submit_register = st.form_submit_button("✨ Créer mon compte", use_container_width=True)
-                
-                if submit_register:
-                    if not all([new_username, new_email, new_password, new_password_confirm]):
-                        st.error("❌ Veuillez remplir tous les champs")
-                    elif new_password != new_password_confirm:
-                        st.error("❌ Les mots de passe ne correspondent pas")
-                    elif not accept_terms:
-                        st.error("❌ Veuillez accepter les conditions d'utilisation")
+            username = st.text_input(
+                "👤 Nom d'utilisateur",
+                placeholder="Entrez votre nom d'utilisateur"
+            )
+            
+            password = st.text_input(
+                "🔒 Mot de passe",
+                type="password",
+                placeholder="Entrez votre mot de passe"
+            )
+            
+            col_a, col_b = st.columns(2)
+            with col_a:
+                remember = st.checkbox("Se souvenir de moi")
+            with col_b:
+                st.markdown("[ ](#)")
+            
+            submit = st.form_submit_button("🚀 Se connecter", use_container_width=True)
+            
+            if submit:
+                if not username or not password:
+                    st.error("❌ Veuillez remplir tous les champs")
+                else:
+                    success, result = auth.authenticate(username, password)
+                    
+                    if success:
+                        st.session_state.authenticated = True
+                        st.session_state.user = result
+                        st.success(f"✅ Bienvenue {result['full_name'] or result['username']} !")
+                        st.balloons()
+                        st.rerun()
                     else:
-                        success, message = auth.register(
-                            new_username, 
-                            new_email, 
-                            new_password,
-                            new_fullname
-                        )
-                        
-                        if success:
-                            st.success(f"✅ {message}")
-                            st.info("Vous pouvez maintenant vous connecter avec vos identifiants")
-                        else:
-                            st.error(f"❌ {message}")
+                        st.error(f"❌ {result}")
+        
+        # Comptes de test
+        st.info("""
+            **🧪 Comptes de test :**
+            - Admin : `admin` / `admin123`
+            - Demo : `demo` / `demo123`
+        """)
 
 
 def check_authentication():

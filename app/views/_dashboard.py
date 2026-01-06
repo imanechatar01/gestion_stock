@@ -5,7 +5,7 @@ import plotly.express as px
 from models import database
 
 def show():
-    st.title("")
+
     
     # Statistiques
     stats = database.get_statistiques()
@@ -77,39 +77,27 @@ def show():
     st.markdown("---")
 
     # Section Activité Récente et Alertes
-    col_activity, col_alerts = st.columns([2, 1])
-    
-    with col_activity:
-        st.subheader("🕒 Activité Récente")
-        try:
-            mouvements = database.get_mouvements(filtres={'limit': 5})
-            if mouvements:
-                # Créer un DataFrame simple pour l'affichage
-                data = []
-                for m in mouvements:
-                    icon = "📥" if m['type'] == 'entree' else "📤" if m['type'] == 'sortie' else "📝"
-                    data.append({
-                        "Type": f"{icon} {m['type'].capitalize()}",
-                        "Produit": m['produit_nom'],
-                        "Quantité": m['quantite'],
-                        "Date": m['date_mouvement'],
-                        "Motif": m['motif']
-                    })
-                st.dataframe(pd.DataFrame(data), hide_index=True, use_container_width=True)
-            else:
-                st.info("Aucun mouvement récent.")
-        except Exception as e:
-            st.error(f"Erreur chargement activité: {e}")
-
-    with col_alerts:
-        st.subheader("⚠️ Produits à Réapprovisionner")
-        produits_alerte = database.get_produits_en_alerte()
-        
-        if produits_alerte:
-            for produit in produits_alerte:
-                st.warning(f"**{produit['nom']}** (Stock: {produit['quantite']}, Seuil: {produit['seuil_min']})")
+    # Section Activité Récente
+    st.subheader("🕒 Activité Récente")
+    try:
+        mouvements = database.get_mouvements(filtres={'limit': 10}) # Increased limit slightly since it has more space
+        if mouvements:
+            # Créer un DataFrame simple pour l'affichage
+            data = []
+            for m in mouvements:
+                icon = "📥" if m['type'] == 'entree' else "📤" if m['type'] == 'sortie' else "📝"
+                data.append({
+                    "Type": f"{icon} {m['type'].capitalize()}",
+                    "Produit": m['produit_nom'],
+                    "Quantité": m['quantite'],
+                    "Date": m['date_mouvement'],
+                    "Motif": m['motif']
+                })
+            st.dataframe(pd.DataFrame(data), hide_index=True, use_container_width=True)
         else:
-            st.success("✅ Tous les produits ont un stock suffisant")
+            st.info("Aucun mouvement récent.")
+    except Exception as e:
+        st.error(f"Erreur chargement activité: {e}")
     
     # Actions rapides
     st.markdown("---")
