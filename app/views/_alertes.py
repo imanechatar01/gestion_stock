@@ -13,6 +13,14 @@ def show():
     
     # Titre avec indicateur en temps réel
     st.markdown("""
+    <style>
+    /* Remove default Streamlit top padding */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
+    }
+    </style>
+    
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
         <div>
             <h1 style="margin: 0;">⚠️ Gestion des Alertes</h1>

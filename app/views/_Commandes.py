@@ -5,6 +5,16 @@ from datetime import datetime
 from models import database
 
 def show():
+    # Remove default Streamlit top padding
+    st.markdown("""
+        <style>
+        .block-container {
+            padding-top: 1rem !important;
+            padding-bottom: 0rem !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.title("📑 Générateur de Commandes")
     
     # Récupérer le produit à commander s'il a été passé en paramètre

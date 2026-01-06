@@ -7,6 +7,16 @@ from datetime import datetime
 def show():
     """Page de gestion des utilisateurs - Réservée aux administrateurs"""
     
+    # Remove default padding
+    st.markdown("""
+        <style>
+        .block-container {
+            padding-top: 1rem !important;
+            padding-bottom: 0rem !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.markdown("### 👥 Gestion des Utilisateurs")
     st.markdown("Gérez les comptes utilisateurs et leurs permissions")
     

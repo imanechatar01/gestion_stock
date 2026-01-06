@@ -5,6 +5,7 @@ Version fonctionnelle (sans POO complexe)
 """
 
 import sqlite3
+import hashlib
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,10 @@ BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+def hash_password(password):
+    """Hash SHA-256 du mot de passe (local helper)"""
+    return hashlib.sha256(password.encode()).hexdigest()
 
 # ============================================================================
 # FONCTIONS DE CONNEXION ET UTILITAIRES
@@ -146,6 +151,46 @@ def init_database():
     )
     ''')
     
+    # ==========================================
+    # TABLES AUTHENTIFICATION
+    # ==========================================
+    
+    # Table des utilisateurs
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            full_name TEXT,
+            role TEXT DEFAULT 'user',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login TIMESTAMP,
+            is_active BOOLEAN DEFAULT 1
+        )
+    ''')
+    
+    # Table des tentatives de connexion
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            success BOOLEAN,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # Table des sessions persistantes
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+    
     conn.commit()
     conn.close()
     logger.info("✅ Base de données initialisée")
@@ -167,6 +212,28 @@ def create_demo_data():
     """Crée des données de démo"""
     conn = get_connection()
     cursor = conn.cursor()
+    
+    # ==========================================
+    # DONNÉES UTILISATEURS PAR DÉFAUT
+    # ==========================================
+    try:
+        # Admin
+        admin_hash = hash_password("admin123")
+        cursor.execute(
+            """INSERT OR IGNORE INTO users (username, email, password_hash, full_name, role) 
+               VALUES (?, ?, ?, ?, ?)""",
+            ("admin", "admin@stockflow.com", admin_hash, "Administrateur", "admin")
+        )
+        
+        # User Demo
+        demo_hash = hash_password("demo123")
+        cursor.execute(
+            """INSERT OR IGNORE INTO users (username, email, password_hash, full_name, role) 
+               VALUES (?, ?, ?, ?, ?)""",
+            ("demo", "demo@stockflow.com", demo_hash, "Utilisateur Demo", "user")
+        )
+    except Exception as e:
+        logger.error(f"Erreur création users démo: {e}")
     
     # Catégories
     categories = [

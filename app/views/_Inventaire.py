@@ -5,6 +5,16 @@ from datetime import datetime, timedelta
 from models import database
 
 def show():
+    # Remove default padding
+    st.markdown("""
+        <style>
+        .block-container {
+            padding-top: 1rem !important;
+            padding-bottom: 0rem !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.title("📊 Gestion des Stocks et Inventaire")
     
     # Onglets pour les différentes fonctionnalités

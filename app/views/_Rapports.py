@@ -11,6 +11,12 @@ from models import database
 def show():
     st.markdown("""
     <style>
+    /* Remove default Streamlit top padding */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
+    }
+    
     .rapport-header {
         color: #1E40AF;
         font-size: 24px;

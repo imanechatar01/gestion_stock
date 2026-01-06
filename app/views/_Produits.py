@@ -8,6 +8,12 @@ from models import database
 def show():
     st.markdown("""
     <style>
+    /* Remove default Streamlit top padding */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
+    }
+    
     .produit-card {
         background-color: #F8FAFC;
         padding: 15px;
