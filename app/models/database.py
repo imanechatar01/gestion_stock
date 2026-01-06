@@ -146,8 +146,26 @@ def init_database():
     )
     ''')
     
+    # Table alertes_traitement
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS alertes_traitement (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        alerte_id TEXT NOT NULL,
+        date_traitement TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        traite_par TEXT,
+        action_prise TEXT,
+        notes TEXT
+    )
+    ''')
+    
     conn.commit()
     conn.close()
+    
+    # Initialiser les tables d'authentification
+    from .auth import AuthManager
+    auth = AuthManager()
+    auth.init_auth_tables()
+    
     logger.info("✅ Base de données initialisée")
     
     # Créer des données de démo si base vide
@@ -420,6 +438,74 @@ def get_produits_en_alerte():
         WHERE p.quantite <= p.seuil_min
         ORDER BY p.quantite ASC
     """)
+
+# ============================================================================
+# FONCTIONS ALERTES
+# ============================================================================
+
+def get_alertes_actives():
+    """Récupère toutes les alertes de stock actives"""
+    produits = get_produits_en_alerte()
+    alertes = []
+    
+    for p in produits:
+        qte = p['quantite']
+        seuil = p['seuil_min']
+        
+        urgence = "MOYENNE"
+        if qte == 0:
+            urgence = "CRITIQUE"
+        elif qte <= seuil * 0.5:
+            urgence = "HAUTE"
+            
+        alertes.append({
+            'id': f"STOCK-{p['id']}",
+            'type': 'stock_bas',
+            'titre': f"Stock bas: {p['nom']}",
+            'description': f"Il ne reste que {qte} unités (Seuil: {seuil})",
+            'urgence': urgence,
+            'date_detection': datetime.now().isoformat(),
+            'produit_id': p['id'],
+            'produit_nom': p['nom'],
+            'categorie': p['categorie_nom'],
+            'statut': 'active',
+            'action_requise': 'Commander du stock'
+        })
+    
+    return alertes
+
+def traiter_alerte(alerte_id, traite_par, action_prise, notes=""):
+    """Enregistre le traitement d'une alerte"""
+    return execute_query("""
+        INSERT INTO alertes_traitement (alerte_id, traite_par, action_prise, notes)
+        VALUES (?, ?, ?, ?)
+    """, (alerte_id, traite_par, action_prise, notes))
+
+def get_statistiques_alertes():
+    """Calcule les statistiques détaillées des alertes"""
+    # On récupère toutes les alertes actives
+    alertes = get_alertes_actives()
+    
+    # On récupère le nombre d'alertes traitées (historique)
+    res_traitees = fetch_one("SELECT COUNT(*) as count FROM alertes_traitement")
+    nb_traitees = res_traitees['count'] if res_traitees else 0
+    
+    stats = {
+        'total': len(alertes),
+        'critiques': len([a for a in alertes if a['urgence'] == 'CRITIQUE']),
+        'hautes': len([a for a in alertes if a['urgence'] == 'HAUTE']),
+        'moyennes': len([a for a in alertes if a['urgence'] == 'MOYENNE']),
+        'basses': len([a for a in alertes if a['urgence'] == 'BASSE']),
+        'par_type': {
+            'stock_bas': len([a for a in alertes if a['type'] == 'stock_bas']),
+            'expiration': 0, # Pas encore implémenté en base
+            'gros_mouvement': 0, # Pas encore implémenté en base
+        },
+        'traitees': nb_traitees,
+        'non_traitees': len(alertes)
+    }
+    
+    return stats
 
 # ============================================================================
 # FONCTIONS STATISTIQUES

@@ -1,14 +1,18 @@
-# app/models/auth.py - Système d'authentification intégré
 import streamlit as st
 import hashlib
 import sqlite3
 from datetime import datetime, timedelta
 import re
+from pathlib import Path
+
+# Chemin de la base de données (même logique que database.py pour éviter les erreurs d'import)
+BASE_DIR = Path(__file__).parent.parent
+DB_PATH = BASE_DIR / "data" / "stock.db"
 
 class AuthManager:
     """Gestionnaire d'authentification qui utilise la même base de données"""
     
-    def __init__(self, db_path="stock.db"):
+    def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
         self.init_auth_tables()
     

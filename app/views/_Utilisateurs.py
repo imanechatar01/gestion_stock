@@ -104,7 +104,7 @@ def show():
                         st.success("✅ Employé supprimé")
                         st.rerun()
         
-        conn.close()
+
     
     # TAB 2 : Statistiques (Redirigé depuis tab3 original)
     with tab2:
