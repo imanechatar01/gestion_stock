@@ -687,3 +687,34 @@ def delete_produit(produit_id):
         import logging
         logging.error(f"Erreur suppression produit {produit_id}: {e}")
         return False
+
+def export_to_excel(filename=None):
+    """
+    Exporte toutes les données en Excel avec plusieurs feuilles
+    """
+    if filename is None:
+        filename = f"export_stock_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    
+    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+        # Produits
+        df_produits = get_produits_dataframe()
+        df_produits.to_excel(writer, sheet_name='Produits', index=False)
+        
+        # Catégories
+        df_categories = to_dataframe("SELECT * FROM categories")
+        df_categories.to_excel(writer, sheet_name='Catégories', index=False)
+        
+        # Fournisseurs
+        df_fournisseurs = to_dataframe("SELECT * FROM fournisseurs")
+        df_fournisseurs.to_excel(writer, sheet_name='Fournisseurs', index=False)
+        
+        # Mouvements (30 derniers jours)
+        df_mouvements = to_dataframe("""
+            SELECT * FROM mouvements 
+            WHERE date_mouvement >= DATE('now', '-30 days')
+            ORDER BY date_mouvement DESC
+        """)
+        df_mouvements.to_excel(writer, sheet_name='Mouvements', index=False)
+    
+    logger.info(f"✅ Export Excel créé: {filename}")
+    return filename

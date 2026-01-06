@@ -4,6 +4,7 @@ import hashlib
 import sqlite3
 from datetime import datetime, timedelta
 import re
+import uuid
 
 class AuthManager:
     """Gestionnaire d'authentification qui utilise la même base de données"""
@@ -39,6 +40,17 @@ class AuthManager:
                 username TEXT,
                 success BOOLEAN,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Table des sessions persistantes
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sessions (
+                token TEXT PRIMARY KEY,
+                user_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
         
@@ -103,6 +115,60 @@ class AuthManager:
         conn.close()
         return attempts < 5
     
+    def create_session(self, user_id):
+        """Crée une nouvelle session persistante"""
+        token = str(uuid.uuid4())
+        expires_at = datetime.now() + timedelta(days=7)  # Valide 7 jours
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+            (token, user_id, expires_at)
+        )
+        conn.commit()
+        conn.close()
+        return token
+
+    def delete_session(self, token):
+        """Supprime une session"""
+        if not token:
+            return
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        conn.commit()
+        conn.close()
+
+    def validate_token(self, token):
+        """Vérifie si un token est valide et retourne l'utilisateur associé"""
+        if not token:
+            return None
+            
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            """SELECT u.id, u.username, u.email, u.full_name, u.role 
+               FROM sessions s 
+               JOIN users u ON s.user_id = u.id 
+               WHERE s.token = ? AND s.expires_at > ?""",
+            (token, datetime.now())
+        )
+        
+        user = cursor.fetchone()
+        conn.close()
+        
+        if user:
+            return {
+                'id': user[0],
+                'username': user[1],
+                'email': user[2],
+                'full_name': user[3],
+                'role': user[4]
+            }
+        return None
+
     def log_attempt(self, username, success):
         """Enregistre une tentative de connexion"""
         conn = sqlite3.connect(self.db_path)
@@ -114,7 +180,7 @@ class AuthManager:
         conn.commit()
         conn.close()
     
-    def authenticate(self, username, password):
+    def authenticate(self, username, password, remember=False):
         """Authentifie un utilisateur"""
         if not self.check_attempts(username):
             return False, "Trop de tentatives. Réessayez dans 15 minutes."
@@ -147,8 +213,12 @@ class AuthManager:
                 'role': user[4]
             }
             
+            token = None
+            if remember:
+                token = self.create_session(user[0])
+            
             conn.close()
-            return True, user_data
+            return True, (user_data, token)
         
         self.log_attempt(username, False)
         conn.close()
@@ -193,16 +263,111 @@ def show_login_page():
     # CSS pour la page de login
     st.markdown("""
         <style>
-        .stApp {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        /* Import Font */
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+        
+        html, body, [class*="css"] {
+            font-family: 'Poppins', sans-serif;
         }
+
+        /* Modern Background */
+        .stApp {
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+            background-size: cover;
+            background-attachment: fixed;
+            background-color: #0f172a;
+        }
+        
+        /* Glassmorphism Card */
         div[data-testid="stForm"] {
-            background: white;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            border-radius: 24px;
             padding: 3rem;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 450px;
-            margin: 0 auto;
+            color: white;
+        }
+
+        /* Input Fields Styling */
+        div[data-baseweb="input"] {
+            background-color: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 12px !important;
+            color: white !important;
+        }
+        
+        div[data-baseweb="input"] > div {
+            background-color: transparent !important;
+            color: white !important;
+        }
+        
+        /* Input Text Color */
+        input {
+            color: white !important;
+        }
+
+        /* Labels */
+        .stMarkdown label, p, h1, h2, h3 {
+            color: white !important;
+        }
+        
+        /* Button Styling */
+        button[kind="secondaryFormSubmit"] {
+            background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+            border: none;
+            color: white !important;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);
+        }
+        
+        button[kind="secondaryFormSubmit"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.5);
+            background: linear-gradient(90deg, #4338ca 0%, #6d28d9 100%);
+        }
+        
+        /* Tabs Styling */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 20px;
+            background-color: transparent;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            height: 50px;
+            background-color: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            color: white;
+            border: none;
+            padding: 0 20px;
+        }
+
+        .stTabs [data-baseweb="tab"][aria-selected="true"] {
+            background-color: rgba(255,255,255,0.2);
+            font-weight: bold;
+        }
+
+        /* Checkbox */
+        label[data-baseweb="checkbox"] {
+            color: white !important;
+        }
+        
+        /* Remove default Streamlit top padding */
+        .block-container {
+            padding-top: 1rem !important;
+            padding-bottom: 0rem !important;
+        }
+        
+        /* Hide header elements if present */
+        header[data-testid="stHeader"] {
+            background-color: transparent;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -211,17 +376,37 @@ def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        
         # Logo et titre
         st.markdown("""
-            <div style='text-align: center; margin-bottom: 2rem;'>
-                <img src='https://cdn-icons-png.flaticon.com/512/869/869869.png' width='100'>
-                <h1 style='color: white; margin-top: 1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.2);'>
+            <div style='text-align: center; margin-bottom: 3rem; margin-top: 2rem;'>
+                <div style='
+                    background: rgba(255,255,255,0.1); 
+                    width: 120px; 
+                    height: 120px; 
+                    border-radius: 50%; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    margin: 0 auto 1.5rem auto;
+                    backdrop-filter: blur(10px);
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+                    border: 1px solid rgba(255,255,255,0.2);
+                '>
+                    <img src='https://cdn-icons-png.flaticon.com/512/869/869869.png' width='70' style='filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));'>
+                </div>
+                <h1 style='
+                    color: white; 
+                    font-size: 2.5rem; 
+                    font-weight: 700; 
+                    margin-bottom: 0.5rem;
+                    background: linear-gradient(to right, #fff, #a5b4fc);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                '>
                     StockFlow Pro
                 </h1>
-                <p style='color: rgba(255,255,255,0.9); font-size: 1.1rem;'>
-                    Système de Gestion de Stock
+                <p style='color: #94a3b8 !important; font-size: 1.1rem; margin-top: 0;'>
+                    Système de Gestion de Stock Avancé
                 </p>
             </div>
         """, unsafe_allow_html=True)
@@ -259,12 +444,21 @@ def show_login_page():
                     if not username or not password:
                         st.error("❌ Veuillez remplir tous les champs")
                     else:
-                        success, result = auth.authenticate(username, password)
+                        success, result = auth.authenticate(username, password, remember)
                         
                         if success:
+                            user_data, token = result
                             st.session_state.authenticated = True
-                            st.session_state.user = result
-                            st.success(f"✅ Bienvenue {result['full_name'] or result['username']} !")
+                            st.session_state.user = user_data
+                            
+                            # Sauvegarder le token si "Se souvenir de moi" est coché
+                            if token:
+                                try:
+                                    st.query_params["token"] = token
+                                except AttributeError:
+                                    st.experimental_set_query_params(token=token)
+                            
+                            st.success(f"✅ Bienvenue {user_data['full_name'] or user_data['username']} !")
                             st.balloons()
                             st.rerun()
                         else:
@@ -341,6 +535,24 @@ def check_authentication():
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
     
+    # Vérification du token si non connecté
+    if not st.session_state.authenticated:
+        # Compatibilité Streamlit < 1.30
+        try:
+            query_params = st.query_params
+            token = query_params.get("token")
+        except AttributeError:
+            query_params = st.experimental_get_query_params()
+            token = query_params.get("token", [None])[0]
+        
+        if token:
+            auth = AuthManager()
+            user = auth.validate_token(token)
+            if user:
+                st.session_state.authenticated = True
+                st.session_state.user = user
+                st.rerun()
+    
     if not st.session_state.authenticated:
         show_login_page()
         st.stop()
@@ -348,6 +560,24 @@ def check_authentication():
 
 def logout():
     """Déconnecte l'utilisateur"""
+    # Supprimer le token si présent
+    try:
+        # Nouveau Streamlit
+        token = st.query_params.get("token")
+        if token:
+            auth = AuthManager()
+            auth.delete_session(token)
+            if "token" in st.query_params:
+                del st.query_params["token"]
+    except AttributeError:
+        # Ancien Streamlit
+        params = st.experimental_get_query_params()
+        token = params.get("token", [None])[0]
+        if token:
+            auth = AuthManager()
+            auth.delete_session(token)
+            st.experimental_set_query_params()  # Clear all params
+            
     st.session_state.authenticated = False
     if 'user' in st.session_state:
         del st.session_state.user
