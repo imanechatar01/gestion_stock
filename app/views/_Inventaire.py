@@ -5,17 +5,17 @@ from datetime import datetime, timedelta
 from models import database
 
 def show():
-    st.title("📊 Gestion des Stocks et Inventaire")
+    st.title("Gestion des Stocks et Inventaire")
     
     # Onglets pour les différentes fonctionnalités
     # Logique pour définir l'onglet par défaut (hack pour Streamlit qui ne permet pas de set l'index)
     default_tab = st.session_state.get('inventory_default_tab', 'entrees')
     
     # Définition des titres
-    t_entrees = "📥 Entrées Stock"
-    t_sorties = "📤 Sorties Stock"
-    t_historique = "📋 Historique"
-    t_inventaire = "🔄 Inventaire"
+    t_entrees = "Entrées Stock"
+    t_sorties = "Sorties Stock"
+    t_historique = "Historique"
+    t_inventaire = "Inventaire"
     
     # Ordre d'affichage
     if default_tab == 'sorties':
@@ -43,7 +43,7 @@ def show():
     # TAB 1 : ENTREES DE STOCK
     # ============================================
     with tab1:
-        st.header("📥 Entrées de Stock")
+        st.header("Entrées de Stock")
         st.markdown("Enregistrez les nouvelles arrivées de marchandises")
         
         # Formulaire d'entrée
@@ -113,7 +113,7 @@ def show():
             col_btn1, col_btn2, col_btn3 = st.columns([2, 1, 1])
             with col_btn1:
                 submitted = st.form_submit_button(
-                    "✅ Enregistrer l'entrée de stock",
+                    "Enregistrer l'entrée de stock",
                     type="primary",
                     use_container_width=True
                 )
@@ -140,7 +140,7 @@ def show():
                         stock_apres = produit_apres['quantite']
                         
                         st.success(f"""
-                        ✅ Entrée de stock enregistrée avec succès !
+                        Entrée de stock enregistrée avec succès !
                         
                         **Détails :**
                         - Produit: {produits_dict[produit_id]}
@@ -151,17 +151,16 @@ def show():
                         
                         # Réinitialiser le formulaire
                         st.rerun()
-                        
                 except Exception as e:
-                    st.error(f"❌ Erreur: {str(e)}")
+                    st.error(f"Erreur: {str(e)}")
             elif submitted:
-                st.error("❌ Veuillez sélectionner un produit")
+                st.error("Veuillez sélectionner un produit")
     
     # ============================================
     # TAB 2 : SORTIES DE STOCK
     # ============================================
     with tab2:
-        st.header("📤 Sorties de Stock")
+        st.header("Sorties de Stock")
         st.markdown("Enregistrez les sorties de marchandises (ventes, pertes, etc.)")
         
         with st.form("form_sortie_stock", clear_on_submit=True):
@@ -186,7 +185,7 @@ def show():
                             help="Sélectionnez le produit à sortir"
                         )
                     else:
-                        st.warning("⚠️ Aucun produit en stock disponible")
+                        st.warning("Aucun produit en stock disponible")
                         produit_id = None
                 else:
                     st.warning("Aucun produit disponible")
@@ -209,7 +208,7 @@ def show():
                         stock_dispo = produit_info['quantite']
                         
                         if quantite > stock_dispo:
-                            st.error(f"❌ Stock insuffisant! Disponible: {stock_dispo}")
+                            st.error(f"Stock insuffisant! Disponible: {stock_dispo}")
                         else:
                             st.metric(
                                 "Stock après sortie",
@@ -249,7 +248,7 @@ def show():
             col_btn1, col_btn2 = st.columns([3, 1])
             with col_btn1:
                 submitted = st.form_submit_button(
-                    "✅ Enregistrer la sortie de stock",
+                    "Enregistrer la sortie de stock",
                     type="primary",
                     use_container_width=True
                 )
@@ -278,7 +277,7 @@ def show():
                             stock_apres = produit_apres['quantite']
                             
                             st.success(f"""
-                            ✅ Sortie de stock enregistrée avec succès !
+                            Sortie de stock enregistrée avec succès !
                             
                             **Détails :**
                             - Produit: {produits_dict[produit_id]}
@@ -290,22 +289,18 @@ def show():
                             
                             st.rerun()
                     else:
-                        st.error("❌ Quantité demandée supérieure au stock disponible")
-                        
+                        st.error("Quantité demandée supérieure au stock disponible")
                 except Exception as e:
-                    st.error(f"❌ Erreur: {str(e)}")
+                    st.error(f"Erreur: {str(e)}")
             elif submitted:
-                st.error("❌ Veuillez sélectionner un produit valide")
+                st.error("Veuillez sélectionner un produit valide")
     
     # ============================================
     # TAB 3 : HISTORIQUE DES MOUVEMENTS
     # ============================================
-        # ============================================
-    # TAB 3 : HISTORIQUE DES MOUVEMENTS (FONCTIONNEL)
-    # ============================================
     with tab3:
         # Filtres avancés
-        with st.expander("🔍 Filtres avancés", expanded=True):
+        with st.expander("Filtres avancés", expanded=True):
             col1, col2, col3 = st.columns(3)
             
             with col1:
@@ -362,26 +357,26 @@ def show():
         # Boutons d'action
         col_btn1, col_btn2, col_btn3 = st.columns([2, 1, 1])
         with col_btn1:
-            if st.button("🔍 Appliquer les filtres", type="primary", use_container_width=True):
+            if st.button("Appliquer les filtres", type="primary", use_container_width=True):
                 st.rerun()
         
         with col_btn2:
-            if st.button("📥 Exporter", use_container_width=True):
+            if st.button("Exporter", use_container_width=True):
                 st.info("Export en cours de développement...")
         
         with col_btn3:
-            if st.button("🔄 Actualiser", use_container_width=True):
+            if st.button("Actualiser", use_container_width=True):
                 st.rerun()
         
         st.markdown("---")
         
         # Préparation des filtres pour la base de données
-        filtres = {'limit': limite}
-        
-        # Gestion de la période
         from datetime import datetime, timedelta
         aujourdhui = datetime.now()
         
+        filtres = {'limit': limite}
+        
+        # Gestion de la période
         if periode == "7 derniers jours":
             filtres['date_debut'] = (aujourdhui - timedelta(days=7)).strftime('%Y-%m-%d')
         elif periode == "30 derniers jours":
@@ -416,18 +411,7 @@ def show():
                     df_mouvements['date_mouvement'] = pd.to_datetime(df_mouvements['date_mouvement'])
                     df_mouvements['date_formatee'] = df_mouvements['date_mouvement'].dt.strftime('%d/%m/%Y %H:%M')
                 
-                # Ajout d'une colonne pour l'icône du type
-                def get_icon_mouvement(type_mvt):
-                    icons = {
-                        'entree': '📥',
-                        'sortie': '📤',
-                        'ajustement': '🔄',
-                        'inventaire': '📊',
-                        'annulation': '🗑️'
-                    }
-                    return icons.get(type_mvt, '📝')
-                
-                df_mouvements['icone'] = df_mouvements['type'].apply(get_icon_mouvement)
+                df_mouvements['icone'] = ""
                 
                 # Calcul des statistiques
                 total_entrees = df_mouvements[df_mouvements['type'] == 'entree']['quantite'].sum()
@@ -448,7 +432,7 @@ def show():
                 st.markdown("---")
                 
                 # Affichage du tableau des mouvements
-                st.subheader("📄 Détail des mouvements")
+                st.subheader("Détail des mouvements")
                 
                 # Sélection des colonnes à afficher
                 columns_config = {
@@ -476,10 +460,10 @@ def show():
                 )
                 
                 # Options d'export
-                with st.expander("💾 Options d'export"):
+                with st.expander("Options d'export"):
                     col_exp1, col_exp2 = st.columns(2)
                     with col_exp1:
-                        if st.button("📊 Exporter en CSV", use_container_width=True):
+                        if st.button("Exporter en CSV", use_container_width=True):
                             csv = df_mouvements.to_csv(index=False, encoding='utf-8-sig')
                             st.download_button(
                                 label="Télécharger CSV",
@@ -489,14 +473,14 @@ def show():
                             )
                     
                     with col_exp2:
-                        if st.button("📈 Exporter en Excel", use_container_width=True):
+                        if st.button("Exporter en Excel", use_container_width=True):
                             excel_path = f"historique_mouvements_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
                             df_mouvements.to_excel(excel_path, index=False)
                             st.success(f"Exporté vers: {excel_path}")
                 
                 # Graphique d'évolution
                 st.markdown("---")
-                st.subheader("📈 Évolution des mouvements")
+                st.subheader("Évolution des mouvements")
                 
                 if 'date_mouvement' in df_mouvements.columns:
                     # Préparation des données pour le graphique
@@ -518,7 +502,7 @@ def show():
                         st.info("Données insuffisantes pour générer le graphique")
                 
             else:
-                st.info("📭 Aucun mouvement trouvé pour les critères sélectionnés")
+                st.info("Aucun mouvement trouvé pour les critères sélectionnés")
                 
                 # Suggestions
                 st.caption("Suggestions :")
@@ -527,7 +511,7 @@ def show():
                 st.caption("• Effectuez des mouvements de stock pour alimenter l'historique")
                 
         except Exception as e:
-            st.error(f"❌ Erreur lors de la récupération de l'historique: {str(e)}")
+            st.error(f"Erreur lors de la récupération de l'historique: {str(e)}")
             st.info("Assurez-vous que la fonction `get_mouvements()` est bien implémentée dans database.py")
 
     
@@ -535,7 +519,7 @@ def show():
     # TAB 4 : INVENTAIRE PHYSIQUE
     # ============================================
     with tab4:
-        st.header("🔄 Inventaire Physique")
+        st.header("Inventaire Physique")
         st.markdown("Ajustez les stocks suite à un inventaire physique")
         
         # Mode d'inventaire
@@ -546,13 +530,13 @@ def show():
         )
         
         if mode == "Inventaire complet":
-            st.subheader("📝 Saisie de l'inventaire complet")
+            st.subheader("Saisie de l'inventaire complet")
             
             # Récupérer tous les produits
             produits = database.get_all_produits()
             
             if produits:
-                st.info(f"📊 **{len(produits)} produits à inventorier**")
+                st.info(f"**{len(produits)} produits à inventorier**")
                 
                 # Formulaire pour chaque produit
                 with st.form("form_inventaire_complet"):
@@ -604,7 +588,7 @@ def show():
                     )
                     
                     submitted = st.form_submit_button(
-                        "✅ Valider l'inventaire complet",
+                        "Valider l'inventaire complet",
                         type="primary",
                         use_container_width=True
                     )
@@ -620,12 +604,12 @@ def show():
                             """)
                             
                             # Afficher le détail des ajustements
-                            with st.expander("🔍 Détail des ajustements"):
+                            with st.expander("Détail des ajustements"):
                                 for ajust in ajustements:
                                     st.write(f"**{ajust['produit_nom']}** : {ajust['difference']:+d} unités")
                             
                             # Bouton de confirmation
-                            if st.button("✅ Confirmer et appliquer les ajustements", type="primary"):
+                            if st.button("Confirmer et appliquer les ajustements", type="primary"):
                                 try:
                                     for ajust in ajustements:
                                         database.update_stock(
@@ -636,20 +620,20 @@ def show():
                                             utilisateur="admin"
                                         )
                                     
-                                    st.success("🎉 Inventaire complété avec succès !")
+                                    st.success("Inventaire complété avec succès !")
                                     st.balloons()
                                     st.rerun()
                                     
                                 except Exception as e:
-                                    st.error(f"❌ Erreur: {str(e)}")
+                                    st.error(f"Erreur: {str(e)}")
                         else:
-                            st.info("✅ Aucun écart détecté. Les stocks théoriques correspondent aux stocks physiques.")
+                            st.info("Aucun écart détecté. Les stocks théoriques correspondent aux stocks physiques.")
             
             else:
                 st.warning("Aucun produit à inventorier")
         
         else:  # Mode ajustement par produit
-            st.subheader("🔧 Ajustement de stock ponctuel")
+            st.subheader("Ajustement de stock ponctuel")
             
             with st.form("form_ajustement_ponctuel"):
                 # Sélection du produit
@@ -693,7 +677,7 @@ def show():
                         )
                         
                         submitted = st.form_submit_button(
-                            "✅ Appliquer l'ajustement",
+                            "Appliquer l'ajustement",
                             type="primary",
                             use_container_width=True
                         )
@@ -710,7 +694,7 @@ def show():
                                 
                                 if success:
                                     st.success(f"""
-                                    ✅ Ajustement appliqué avec succès !
+                                    Ajustement appliqué avec succès !
                                     
                                     **{produit_info['nom']}**
                                     - Ancien stock: **{produit_info['quantite']}**
@@ -721,9 +705,9 @@ def show():
                                     st.rerun()
                                     
                             except Exception as e:
-                                st.error(f"❌ Erreur: {str(e)}")
+                                st.error(f"Erreur: {str(e)}")
                         elif submitted:
-                            st.error("❌ Veuillez remplir tous les champs obligatoires")
+                            st.error("Veuillez remplir tous les champs obligatoires")
                 
                 else:
                     st.warning("Aucun produit disponible")

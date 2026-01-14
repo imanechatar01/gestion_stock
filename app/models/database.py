@@ -127,6 +127,7 @@ def init_database():
         seuil_min INTEGER DEFAULT 5,
         prix_achat REAL DEFAULT 0.0,
         prix_vente REAL DEFAULT 0.0,
+        image_url TEXT,
         date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (categorie_id) REFERENCES categories(id),
         FOREIGN KEY (fournisseur_id) REFERENCES fournisseurs(id)
@@ -197,7 +198,7 @@ def create_demo_data():
     ]
     
     for nom, couleur in categories:
-        cursor.execute("INSERT INTO categories (nom, couleur) VALUES (?, ?)", (nom, couleur))
+        cursor.execute("INSERT OR IGNORE INTO categories (nom, couleur) VALUES (?, ?)", (nom, couleur))
     
     # Fournisseurs
     fournisseurs = [
@@ -207,7 +208,7 @@ def create_demo_data():
     ]
     
     for nom, email, tel in fournisseurs:
-        cursor.execute("INSERT INTO fournisseurs (nom, email, telephone) VALUES (?, ?, ?)", (nom, email, tel))
+        cursor.execute("INSERT OR IGNORE INTO fournisseurs (nom, email, telephone) VALUES (?, ?, ?)", (nom, email, tel))
     
     # Produits
     produits = [
@@ -220,7 +221,7 @@ def create_demo_data():
     
     for ref, nom, desc, cat_id, four_id, qte, seuil, prix_a, prix_v in produits:
         cursor.execute('''
-            INSERT INTO produits 
+            INSERT OR IGNORE INTO produits 
             (reference, nom, description, categorie_id, fournisseur_id, quantite, seuil_min, prix_achat, prix_vente)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ref, nom, desc, cat_id, four_id, qte, seuil, prix_a, prix_v))
@@ -344,7 +345,8 @@ def add_produit(produit_data):
         'quantite': 0,
         'seuil_min': 5,
         'prix_achat': 0.0,
-        'prix_vente': 0.0
+        'prix_vente': 0.0,
+        'image_url': None
     }
     
     data = {**defaults, **produit_data}
@@ -353,15 +355,16 @@ def add_produit(produit_data):
     query = """
         INSERT INTO produits 
         (reference, nom, description, categorie_id, fournisseur_id, 
-         quantite, seuil_min, prix_achat, prix_vente)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         quantite, seuil_min, prix_achat, prix_vente, image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     
     params = (
         data['reference'], data['nom'], data['description'],
         data['categorie_id'], data['fournisseur_id'],
         data['quantite'], data['seuil_min'],
-        data['prix_achat'], data['prix_vente']
+        data['prix_achat'], data['prix_vente'],
+        data['image_url']
     )
     
     cursor = execute_query(query, params)
@@ -764,14 +767,36 @@ def delete_mouvement(mouvement_id):
     
 def delete_produit(produit_id):
     """
-    Supprime un produit de la base.
+    Supprime un produit et son image associée du système de fichiers
     """
     try:
+        # 1. Récupérer les informations du produit avant suppression
+        produit = get_produit_by_id(produit_id)
+        if not produit:
+            logger.warning(f"Produit {produit_id} non trouvé")
+            return False
+        
+        # 2. Supprimer le fichier image s'il existe
+        if produit.get('image_url'):
+            image_path = BASE_DIR / produit['image_url']
+            if image_path.exists():
+                try:
+                    os.remove(image_path)
+                    logger.info(f"Image supprimée: {image_path}")
+                except Exception as img_error:
+                    logger.warning(f"Impossible de supprimer l'image {image_path}: {img_error}")
+        
+        # 3. Supprimer les mouvements associés
+        execute_query("DELETE FROM mouvements WHERE produit_id = ?", (produit_id,))
+        
+        # 4. Supprimer le produit de la base de données
         execute_query("DELETE FROM produits WHERE id = ?", (produit_id,))
+        
+        logger.info(f"Produit {produit_id} ({produit['nom']}) supprimé avec succès")
         return True
+        
     except Exception as e:
-        import logging
-        logging.error(f"Erreur suppression produit {produit_id}: {e}")
+        logger.error(f"Erreur suppression produit {produit_id}: {e}")
         return False
 
 def export_to_excel(filename=None):

@@ -82,7 +82,7 @@ def show():
         produits_alerte = database.get_produits_en_alerte()
         
         if not produits_alerte:
-            st.success("🎉 Tous les stocks sont optimaux !")
+            st.success("Tous les stocks sont optimaux !")
             st.balloons()
             return
 
@@ -168,7 +168,7 @@ def show():
 """, unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f"❌ Erreur de rendu: {e}")
+        st.error(f"Erreur de rendu: {e}")
         import traceback
         st.code(traceback.format_exc())
 
@@ -339,7 +339,7 @@ def display_tableau_de_bord():
     col_chart1, col_chart2 = st.columns(2)
     
     with col_chart1:
-        st.markdown("#### 📊 Répartition par urgence")
+        st.markdown("#### Répartition par urgence")
         
         # Données pour le graphique
         data_urgence = {
@@ -368,7 +368,7 @@ def display_tableau_de_bord():
         st.plotly_chart(fig, use_container_width=True)
     
     with col_chart2:
-        st.markdown("#### 📈 Répartition par type")
+        st.markdown("#### Répartition par type")
         
         data_type = pd.DataFrame([
             {'Type': 'Stock Bas', 'Nombre': stats['par_type']['stock_bas']},
@@ -393,7 +393,7 @@ def display_tableau_de_bord():
     
     # Alertes récentes
     st.markdown("---")
-    st.markdown("#### 🚨 Alertes récentes")
+    st.markdown("#### Alertes récentes")
     
     alertes = get_toutes_alertes()
     if alertes:
@@ -407,17 +407,17 @@ def display_tableau_de_bord():
         for alerte in alertes_triees:
             display_carte_alerte(alerte, compact=True)
     else:
-        st.success("🎉 Aucune alerte active pour le moment !")
+        st.success("Aucune alerte active pour le moment !")
     
     # Section de prévision
     st.markdown("---")
-    with st.expander("🔮 Prévisions et recommandations"):
+    with st.expander("Prévisions et recommandations"):
         st.info("Analyse prédictive basée sur les données historiques")
         
         col_rec1, col_rec2 = st.columns(2)
         
         with col_rec1:
-            st.markdown("##### 📦 Produits à surveiller")
+            st.markdown("##### Produits à surveiller")
             
             try:
                 produits_faible_stock = database.get_produits_risque_imminent(limit=5) or []
@@ -426,7 +426,7 @@ def display_tableau_de_bord():
                     for prod in produits_faible_stock:
                         ratio = prod['quantite'] / prod['seuil_min'] if prod['seuil_min'] > 0 else 0
                         st.progress(
-                            min(ratio, 1.0),
+                            min(max(ratio, 0.0), 1.0),
                             text=f"{prod['nom']}: {prod['quantite']}/{prod['seuil_min']}"
                         )
                 else:
@@ -436,14 +436,14 @@ def display_tableau_de_bord():
                 st.error(f"Erreur: {e}")
         
         with col_rec2:
-            st.markdown("##### 📊 Tendances")
+            st.markdown("##### Analyses Visuelles")
             
             # Simulation de tendances
             tendances = [
-                ("📈 Augmentation des alertes stock", "+15% ce mois"),
-                ("📉 Diminution alertes expiration", "-8% ce mois"),
-                ("⏱️ Temps moyen de traitement", "2.3 jours"),
-                ("🎯 Taux de résolution", "87%")
+                (" Augmentation des alertes stock", "+15% ce mois"),
+                (" Diminution alertes expiration", "-8% ce mois"),
+                ("Temps moyen de traitement", "2.3 jours"),
+                (" Taux de résolution", "87%")
             ]
             
             for tendance, valeur in tendances:
@@ -464,10 +464,10 @@ def display_carte_alerte(alerte, compact=False):
     
     # Icônes selon le type
     icons = {
-        'stock_bas': '📦',
-        'expiration': '⏰',
-        'gros_mouvement': '📊',
-        'default': '⚠️'
+        'stock_bas': '',
+        'expiration': '',
+        'gros_mouvement': '',
+        'default': ''
     }
     
     icon = icons.get(alerte['type'], icons['default'])
@@ -478,7 +478,7 @@ def display_carte_alerte(alerte, compact=False):
             col_icon, col_content, col_actions = st.columns([1, 5, 2])
             
             with col_icon:
-                st.markdown(f"<h2 style='margin: 0;'>{icon}</h2>", unsafe_allow_html=True)
+                st.write("") # Espace vide à la place de l'icône
             
             with col_content:
                 st.markdown(f"**{alerte['titre']}**")
@@ -486,7 +486,7 @@ def display_carte_alerte(alerte, compact=False):
                 st.markdown(f"<span style='background: {style['border']}20; color: {style['text']}; padding: 2px 8px; border-radius: 12px; font-size: 12px;'>{alerte['urgence']}</span>", unsafe_allow_html=True)
             
             with col_actions:
-                if st.button("👁️", key=f"view_{alerte['id']}", help="Voir détails"):
+                if st.button("Voir", key=f"view_{alerte['id']}", help="Voir détails"):
                     st.session_state[f"show_alert_{alerte['id']}"] = True
                 
                 if st.button("✓", key=f"resolve_{alerte['id']}", help="Marquer comme traité"):
@@ -501,7 +501,6 @@ def display_carte_alerte(alerte, compact=False):
 <div style="background: {style['bg']}; border: 2px solid {style['border']}; border-radius: 10px; padding: 15px; margin: 10px 0;">
 <div style="display: flex; justify-content: space-between; align-items: center;">
 <div style="display: flex; align-items: center; gap: 10px;">
-<span style="font-size: 24px;">{icon}</span>
 <div>
 <h3 style="margin: 0; color: {style['text']};">{alerte['titre']}</h3>
 <p style="margin: 5px 0; color: #666;">{alerte['description']}</p>
@@ -511,8 +510,8 @@ def display_carte_alerte(alerte, compact=False):
 </div>
 <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
 <div style="font-size: 12px; color: #666;">
-<span>🔍 {alerte.get('categorie', 'Non catégorisé')}</span>
-<span style="margin-left: 15px;">📅 {datetime.fromisoformat(alerte['date_detection']).strftime('%d/%m/%Y %H:%M')}</span>
+<span>{alerte.get('categorie', 'Non catégorisé')}</span>
+<span style="margin-left: 15px;">{datetime.fromisoformat(alerte['date_detection']).strftime('%d/%m/%Y %H:%M')}</span>
 </div>
 <div>
 <span style="background: #3b82f6; color: white; padding: 5px 15px; border-radius: 5px; font-size: 12px;">Action requise: {alerte['action_requise']}</span>
@@ -525,24 +524,24 @@ def display_carte_alerte(alerte, compact=False):
             col_action1, col_action2, col_action3, col_action4 = st.columns(4)
             
             with col_action1:
-                if st.button("✅ Marquer comme traité", key=f"resolve_full_{alerte['id']}", use_container_width=True):
+                if st.button("Marquer comme traité", key=f"resolve_full_{alerte['id']}", use_container_width=True):
                     marquer_alerte_traitee(alerte['id'])
                     st.success(f"Alerte {alerte['id']} marquée comme traitée")
                     time.sleep(1)
                     st.rerun()
             
             with col_action2:
-                if st.button("📝 Créer commande", key=f"order_{alerte['id']}", use_container_width=True):
+                if st.button(" Créer commande", key=f"order_{alerte['id']}", use_container_width=True):
                     if alerte['type'] == 'stock_bas':
                         st.info(f"Création d'une commande pour {alerte['produit_nom']}")
                         # Ici vous pourriez appeler une fonction pour créer une commande
             
             with col_action3:
-                if st.button("🔔 Planifier rappel", key=f"remind_{alerte['id']}", use_container_width=True):
+                if st.button(" Planifier rappel", key=f"remind_{alerte['id']}", use_container_width=True):
                     st.info("Rappel planifié pour demain")
             
             with col_action4:
-                if st.button("📊 Voir historique", key=f"history_{alerte['id']}", use_container_width=True):
+                if st.button("Voir historique", key=f"history_{alerte['id']}", use_container_width=True):
                     st.session_state[f"show_history_{alerte['id']}"] = True
 
 def marquer_alerte_traitee(alerte_id):
@@ -552,7 +551,7 @@ def marquer_alerte_traitee(alerte_id):
 def display_alertes_actives():
     """Affiche la liste des alertes actives"""
     
-    st.markdown("### 🔥 Alertes actives nécessitant une action")
+    st.markdown("### Alertes actives nécessitant une action")
     
     # Filtres
     col_filter1, col_filter2, col_filter3, col_filter4 = st.columns(4)
@@ -577,7 +576,7 @@ def display_alertes_actives():
     
     with col_filter4:
         st.write("")  # Espacement
-        if st.button("🔄 Actualiser", use_container_width=True):
+        if st.button("Actualiser", use_container_width=True):
             st.rerun()
     
     # Récupérer et filtrer les alertes
@@ -607,7 +606,7 @@ def display_alertes_actives():
         col_group1, col_group2, col_group3 = st.columns(3)
         
         with col_group1:
-            if st.button("✅ Tout marquer comme traité", use_container_width=True):
+            if st.button("Tout marquer comme traité", use_container_width=True):
                 for alerte in alertes_triees:
                     marquer_alerte_traitee(alerte['id'])
                 st.success("Toutes les alertes ont été marquées comme traitées")
@@ -615,18 +614,18 @@ def display_alertes_actives():
                 st.rerun()
         
         with col_group2:
-            if st.button("📧 Exporter la liste", use_container_width=True):
+            if st.button("Exporter la liste", use_container_width=True):
                 df = pd.DataFrame(alertes_triees)
                 csv = df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label="📥 Télécharger CSV",
+                    label="Télécharger CSV",
                     data=csv,
                     file_name=f"alertes_actives_{datetime.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv"
                 )
         
         with col_group3:
-            if st.button("📋 Générer rapport", use_container_width=True):
+            if st.button("Générer rapport", use_container_width=True):
                 st.info("Rapport généré et envoyé par email")
         
         # Affichage des alertes
@@ -636,13 +635,13 @@ def display_alertes_actives():
             st.markdown("")
     
     else:
-        st.success("🎉 Excellent ! Aucune alerte active pour le moment.")
+        st.success("Excellent ! Aucune alerte active pour le moment.")
         st.balloons()
 
 def display_historique_alertes():
     """Affiche l'historique des alertes traitées"""
     
-    st.markdown("### 📜 Historique des alertes")
+    st.markdown("### Historique des alertes")
     
     # Statistiques historiques
     col_hist1, col_hist2, col_hist3 = st.columns(3)
@@ -663,7 +662,7 @@ def display_historique_alertes():
     st.markdown("---")
     
     # Graphique historique
-    st.markdown("#### 📈 Évolution des alertes (7 derniers jours)")
+    st.markdown("#### Evolution des alertes (7 derniers jours)")
     
     # Données simulées pour l'historique
     dates = [(datetime.now() - timedelta(days=i)).strftime('%d/%m') for i in range(6, -1, -1)]
@@ -703,7 +702,7 @@ def display_historique_alertes():
     
     # Liste des alertes traitées récemment
     st.markdown("---")
-    st.markdown("#### 🕐 Dernières alertes traitées")
+    st.markdown("#### Dernières alertes traitées")
     
     # Dans une vraie application, vous auriez une table historique dans la base
     historique_simule = [
@@ -740,17 +739,17 @@ def display_historique_alertes():
             with col_hist3:
                 st.write(f"**Action:** {hist['action']}")
             
-            if st.button("🔍 Voir détails", key=f"hist_detail_{hist['id']}"):
+            if st.button("Voir détails", key=f"hist_detail_{hist['id']}"):
                 st.info(f"Détails complets pour {hist['id']}")
 
 def display_configuration_alertes():
     """Affiche la configuration des alertes"""
     
-    st.markdown("### ⚙️ Configuration du système d'alertes")
+    st.markdown("### Configuration du système d'alertes")
     
     # Paramètres généraux
     with st.form("config_form"):
-        st.markdown("#### 🔔 Paramètres de notification")
+        st.markdown("#### Paramètres de notification")
         
         col_notif1, col_notif2 = st.columns(2)
         
@@ -773,7 +772,7 @@ def display_configuration_alertes():
                 )
         
         st.markdown("---")
-        st.markdown("#### 📊 Seuils d'alerte")
+        st.markdown("#### Seuils d'alerte")
         
         col_seuil1, col_seuil2, col_seuil3 = st.columns(3)
         
@@ -804,7 +803,7 @@ def display_configuration_alertes():
             )
         
         st.markdown("---")
-        st.markdown("#### ⏰ Planification")
+        st.markdown("#### Planification")
         
         frequence = st.select_slider(
             "Fréquence des vérifications",
@@ -823,37 +822,37 @@ def display_configuration_alertes():
         
         with col_submit1:
             submit = st.form_submit_button(
-                "💾 Enregistrer la configuration",
+                " Enregistrer la configuration",
                 type="primary",
                 use_container_width=True
             )
         
         with col_submit2:
             test = st.form_submit_button(
-                "🔧 Tester les notifications",
+                " Tester les notifications",
                 use_container_width=True
             )
         
         with col_submit3:
             reset = st.form_submit_button(
-                "🔄 Réinitialiser",
+                "Réinitialiser",
                 use_container_width=True
             )
         
         if submit:
-            st.success("✅ Configuration enregistrée avec succès")
+            st.success("Configuration enregistrée avec succès")
             st.balloons()
         
         if test:
-            st.info("📧 Notification de test envoyée aux destinataires configurés")
+            st.info(" Notification de test envoyée aux destinataires configurés")
         
         if reset:
             st.info("Configuration réinitialisée aux valeurs par défaut")
     
     # Configuration avancée
     st.markdown("---")
-    with st.expander("🔧 Configuration avancée"):
-        st.markdown("#### 📊 Personnalisation des seuils par catégorie")
+    with st.expander(" Configuration avancée"):
+        st.markdown("#### Personnalisation des seuils par catégorie")
         
         try:
             categories = database.get_all_categories()
@@ -881,7 +880,7 @@ def display_configuration_alertes():
             st.error(f"Erreur: {e}")
         
         st.markdown("---")
-        st.markdown("#### 🗑️ Gestion des données")
+        st.markdown("#### Gestion des données")
         
         col_data1, col_data2 = st.columns(2)
         
@@ -898,7 +897,7 @@ def display_configuration_alertes():
                 st.info(f"Historique purgé au-delà de {jours_conservation} jours")
         
         with col_data2:
-            if st.button("📤 Exporter toutes les données", use_container_width=True):
+            if st.button("Exporter toutes les données", use_container_width=True):
                 st.info("Export des données en cours...")
 
 if __name__ == "__main__":

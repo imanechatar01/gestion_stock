@@ -26,13 +26,13 @@ def show():
     </style>
     """, unsafe_allow_html=True)
 
-    st.title("📈 Rapports & Analyses")
+    st.title("Rapports & Analyses")
 
     # =======================
     # FILTRES
     # =======================
     with st.sidebar:
-        st.header("🔍 Filtres")
+        st.header("Filtres")
         
         # Filtre Date
         date_debut = st.date_input("Date début", value=datetime.today() - timedelta(days=30))
@@ -69,7 +69,7 @@ def show():
     df_mvt = pd.DataFrame(mouvements)
 
     # Onglets
-    tab1, tab2 = st.tabs(["📝 Historique Détaillé", "📊 Analyse Graphique"])
+    tab1, tab2 = st.tabs(["Historique Détaillé", "Analyse Graphique"])
 
     # =======================
     # TAB 1: HISTORIQUE
@@ -94,7 +94,7 @@ def show():
             # Export CSV
             csv = df_display.to_csv(index=False).encode('utf-8')
             st.download_button(
-                "📥 Télécharger l'historique (CSV)",
+                "Télécharger l'historique (CSV)",
                 data=csv,
                 file_name=f"rapport_stock_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv",
@@ -126,11 +126,15 @@ def show():
                 st.subheader("Top Produits (Volume)")
                 # Group by Product
                 prod_gb = df_mvt.groupby('produit_nom')['quantite'].sum().nlargest(10).sort_values()
+                prod_df = prod_gb.reset_index()
+                prod_df.columns = ['Produit', 'Volume']
+                
                 fig_bar = px.bar(
-                    x=prod_gb.values,
-                    y=prod_gb.index,
+                    prod_df,
+                    x='Volume',
+                    y='Produit',
                     orientation='h',
-                    labels={'x': 'Volume Total', 'y': 'Produit'}
+                    labels={'Volume': 'Volume Total', 'Produit': 'Produit'}
                 )
                 st.plotly_chart(fig_bar, use_container_width=True)
 

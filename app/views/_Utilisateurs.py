@@ -7,17 +7,17 @@ from models import database
 def show():
     """Page de gestion des employés - Réservée aux administrateurs"""
     
-    st.markdown("### 👥 Gestion des Employés")
+    st.markdown("### Gestion des Employés")
     st.markdown("Gérez les comptes employés et leurs permissions d'accès")
     
     col_actions, col_empty = st.columns([1, 4])
     with col_actions:
-        if st.button("➕ Enregistrer un Employé", type="primary", use_container_width=True):
+        if st.button("Enregistrer un Employé", type="primary", use_container_width=True):
             st.session_state.mode = 'create_user'
             st.rerun()
 
     # Tabs
-    tab1, tab2 = st.tabs(["📋 Liste des employés", "📊 Statistiques"])
+    tab1, tab2 = st.tabs(["Liste des employés", "Statistiques"])
     
     # TAB 1 : Liste des utilisateurs
     with tab1:
@@ -53,7 +53,7 @@ def show():
             st.markdown("---")
             
             # Actions sur les utilisateurs
-            st.markdown("#### ⚙️ Actions sur les employés")
+            st.markdown("#### Actions sur les employés")
             
             col1, col2 = st.columns(2)
             
@@ -76,60 +76,60 @@ def show():
                     - Email: {user_info['email']}
                     - Rôle: {user_info['role']}
                     - Permissions: {user_info['permissions'] or 'Aucune'}
-                    - Statut: {'✅ Actif' if user_info['is_active'] else '❌ Inactif'}
+                    - Statut: {'Actif' if user_info['is_active'] else 'Inactif'}
                     """)
             
             with col2:
                 st.markdown("##### Actions disponibles")
                 
-                if st.button("🔄 Activer/Désactiver", use_container_width=True):
+                if st.button("Activer/Désactiver", use_container_width=True):
                     database.update_user_field(user_id, 'is_active', not user_info['is_active'])
-                    st.success("✅ Statut modifié")
+                    st.success("Statut modifié")
                     st.rerun()
                 
-                if st.button("🔐 Réinitialiser mot de passe", use_container_width=True):
-                    st.warning("⚠️ Le nouveau mot de passe sera : `reset123`")
+                if st.button("Réinitialiser mot de passe", use_container_width=True):
+                    st.warning("Le nouveau mot de passe sera : `reset123`")
                     from models.auth import AuthManager
                     auth = AuthManager()
                     new_hash = auth.hash_password("reset123")
                     
                     database.update_user_field(user_id, 'password_hash', new_hash)
-                    st.success("✅ Mot de passe réinitialisé")
+                    st.success("Mot de passe réinitialisé")
                 
-                if st.button("🗑️ Supprimer l'employé", use_container_width=True, type="primary"):
+                if st.button("Supprimer l'employé", use_container_width=True, type="primary"):
                     if user_info['username'] == 'admin':
-                        st.error("❌ Impossible de supprimer le compte admin")
+                        st.error("Impossible de supprimer le compte admin")
                     else:
                         database.delete_user(user_id)
-                        st.success("✅ Employé supprimé")
+                        st.success("Employé supprimé")
                         st.rerun()
         
 
     
     # TAB 2 : Statistiques (Redirigé depuis tab3 original)
     with tab2:
-        st.markdown("#### 📊 Statistiques des utilisateurs")
+        st.markdown("#### Statistiques des utilisateurs")
         
         # Métriques
         stats = database.get_user_metrics()
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("👥 Total utilisateurs", stats['total'])
+            st.metric("Total utilisateurs", stats['total'])
         
         with col2:
-            st.metric("✅ Actifs", stats['actifs'])
+            st.metric("Actifs", stats['actifs'])
         
         with col3:
-            st.metric("👑 Administrateurs", stats['admins'])
+            st.metric("Administrateurs", stats['admins'])
         
         with col4:
-            st.metric("🔐 Déjà connectés", stats['connectes'])
+            st.metric("Déjà connectés", stats['connectes'])
         
         st.markdown("---")
         
         # Graphique des connexions récentes
-        st.markdown("##### 📈 Activité récente (7 derniers jours)")
+        st.markdown("##### Activité récente (7 derniers jours)")
         
         activity_data = database.get_login_activity_data()
         df_activity = pd.DataFrame(activity_data)
@@ -145,7 +145,7 @@ def show():
             st.info("Aucune activité récente")
         
         # Dernières connexions
-        st.markdown("##### 🕐 Dernières connexions réussies")
+        st.markdown("##### Dernières connexions réussies")
         
         last_logins = database.get_recent_successful_logins()
         df_last = pd.DataFrame(last_logins)

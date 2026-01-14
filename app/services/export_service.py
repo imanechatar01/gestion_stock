@@ -225,8 +225,8 @@ def export_rapport_complet():
             ['Nombre de catégories', len(categories) if categories else 0],
             ['Nombre de fournisseurs', len(fournisseurs) if fournisseurs else 0],
             ['', ''],
-            ['⚠️ Produits en alerte', len(produits_alerte) if 'produits_alerte' in locals() else 0],
-            ['📦 Valeur stock totale', f"{(df_prod['quantite'] * df_prod['prix_vente']).sum():.2f} DH" 
+            ['Produits en alerte', len(produits_alerte) if 'produits_alerte' in locals() else 0],
+            ['Valeur stock totale', f"{(df_prod['quantite'] * df_prod['prix_vente']).sum():.2f} DH" 
              if produits and 'df_prod' in locals() else '0 DH']
         ]
         
@@ -285,7 +285,7 @@ def export_inventaire_pdf_format():
     <body>
         <div class="header">
             <div>
-                <h1>📦 FICHE D'INVENTAIRE</h1>
+                <h1>FICHE D'INVENTAIRE</h1>
                 <p><strong>Date:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
                 <p><strong>Nombre de produits:</strong> {len(produits)}</p>
             </div>
@@ -389,7 +389,7 @@ def export_alerte_stock_email_format():
     </head>
     <body>
         <div class="header">
-            <h1>⚠️ ALERTE DE STOCK - {datetime.now().strftime('%d/%m/%Y')}</h1>
+            <h1>ALERTE DE STOCK - {datetime.now().strftime('%d/%m/%Y')}</h1>
             <p>{len(produits_alerte)} produits nécessitent une attention immédiate</p>
         </div>
         
@@ -465,35 +465,35 @@ def get_available_exports():
             'mime_type': 'text/csv'
         },
         'produits_excel': {
-            'name': '📊 Produits (Excel)',
+            'name': 'Produits (Excel)',
             'description': 'Rapport complet avec onglets au format Excel',
             'function': export_produits_excel,
             'filename': f'produits_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
             'mime_type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         },
         'mouvements_csv': {
-            'name': '📋 Historique mouvements (CSV)',
+            'name': 'Historique mouvements (CSV)',
             'description': 'Historique des entrées/sorties de stock',
             'function': lambda: export_mouvements_csv(),
             'filename': f'mouvements_{datetime.now().strftime("%Y%m%d")}.csv',
             'mime_type': 'text/csv'
         },
         'rapport_complet': {
-            'name': '📈 Rapport complet (Excel)',
+            'name': 'Rapport complet (Excel)',
             'description': 'Rapport détaillé avec statistiques et alertes',
             'function': export_rapport_complet,
             'filename': f'rapport_stock_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
             'mime_type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         },
         'fiche_inventaire': {
-            'name': '🖨️ Fiche d\'inventaire (HTML)',
+            'name': 'Fiche d\'inventaire (HTML)',
             'description': 'Format pour inventaire physique à imprimer',
             'function': export_inventaire_pdf_format,
             'filename': f'inventaire_{datetime.now().strftime("%Y%m%d")}.html',
             'mime_type': 'text/html'
         },
         'alertes_email': {
-            'name': '📧 Alertes stock (HTML)',
+            'name': 'Alertes stock (HTML)',
             'description': 'Format pour envoi d\'alertes par email',
             'function': export_alerte_stock_email_format,
             'filename': f'alertes_stock_{datetime.now().strftime("%Y%m%d")}.html',

@@ -48,25 +48,28 @@ class AuthManager:
         ''')
         
         # Créer admin par défaut
+        admin_hash = self.hash_password("admin123")
         try:
-            admin_hash = self.hash_password("admin123")
             cursor.execute(
                 """INSERT INTO users (username, email, password_hash, full_name, role) 
                    VALUES (?, ?, ?, ?, ?)""",
                 ("admin", "admin@stockflow.com", admin_hash, "Administrateur", "admin")
             )
-            
-            # Utilisateur demo
-            demo_hash = self.hash_password("demo123")
+        except sqlite3.IntegrityError:
+            pass  # Admin existe déjà
+        
+        # Utilisateur demo
+        demo_hash = self.hash_password("demo123")
+        try:
             cursor.execute(
                 """INSERT INTO users (username, email, password_hash, full_name, role) 
                    VALUES (?, ?, ?, ?, ?)""",
                 ("demo", "demo@stockflow.com", demo_hash, "Utilisateur Demo", "user")
             )
-            
-            conn.commit()
         except sqlite3.IntegrityError:
-            pass
+            pass  # Demo existe déjà
+        
+        conn.commit()
         
         conn.close()
     
@@ -198,90 +201,101 @@ class AuthManager:
 
 
 def show_login_page():
-    """Page de connexion moderne"""
+    """Page de connexion moderne et épurée"""
     
     # CSS pour la page de login
     st.markdown("""
         <style>
         .stApp {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #1e1b4b;
         }
         div[data-testid="stForm"] {
             background: white;
-            padding: 3rem;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 450px;
+            padding: 3.5rem;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            max-width: 480px;
             margin: 0 auto;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .login-header h1 {
+            color: white;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 0.5rem;
+        }
+        .stButton > button {
+            background-color: #2563eb !important;
+            color: white !important;
+            border-radius: 12px !important;
+            padding: 0.75rem !important;
+            font-weight: 600 !important;
+            border: none !important;
+            height: 50px !important;
+        }
+        .stTextInput > div > div > input {
+            border-radius: 12px !important;
+            height: 48px !important;
         }
         </style>
     """, unsafe_allow_html=True)
     
     # Centrer le contenu
-    col1, col2, col3 = st.columns([1, 2, 1])
+    _, col_center, _ = st.columns([1, 2, 1])
     
-    with col2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
+    with col_center:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
         
-        # Logo et titre
+        # Logo et titre minimalist
         st.markdown("""
-            <div style='text-align: center; margin-bottom: 2rem;'>
-                <img src='https://cdn-icons-png.flaticon.com/512/869/869869.png' width='100'>
-                <h1 style='color: white; margin-top: 1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.2);'>
-                    StockFlow Pro
-                </h1>
-                <p style='color: rgba(255,255,255,0.9); font-size: 1.1rem;'>
-                    Système de Gestion de Stock
+            <div class='login-header' style='text-align: center; margin-bottom: 3rem;'>
+                <h1 style="color:white; font-size: 2.5rem; margin-bottom:0;">StockFlow Pro</h1>
+                <p style='color: rgba(255,255,255,0.6); font-size: 1rem; text-transform: uppercase; letter-spacing: 2px;'>
+                    Gestion de Flux Intelligent
                 </p>
             </div>
         """, unsafe_allow_html=True)
         
-        # Formulaire de connexion uniquement
+        # Formulaire de connexion
         auth = AuthManager()
         
         with st.form("login_form", clear_on_submit=False):
-            st.markdown("### Connectez-vous à votre compte")
+            st.markdown("<h3 style='text-align:center; color:#1e293b; margin-bottom:2rem;'>Connexion</h3>", unsafe_allow_html=True)
             
             username = st.text_input(
-                "👤 Nom d'utilisateur",
-                placeholder="Entrez votre nom d'utilisateur"
+                "Nom d'utilisateur",
+                placeholder="Identifiant"
             )
             
             password = st.text_input(
-                "🔒 Mot de passe",
+                "Mot de passe",
                 type="password",
-                placeholder="Entrez votre mot de passe"
+                placeholder="••••••••"
             )
             
-            col_a, col_b = st.columns(2)
-            with col_a:
-                remember = st.checkbox("Se souvenir de moi")
-            with col_b:
-                st.markdown("[ ](#)")
+            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
             
-            submit = st.form_submit_button("🚀 Se connecter", use_container_width=True)
+            submit = st.form_submit_button("Se connecter", use_container_width=True)
             
             if submit:
                 if not username or not password:
-                    st.error("❌ Veuillez remplir tous les champs")
+                    st.error("Veuillez remplir tous les champs")
                 else:
                     success, result = auth.authenticate(username, password)
                     
                     if success:
                         st.session_state.authenticated = True
                         st.session_state.user = result
-                        st.success(f"✅ Bienvenue {result['full_name'] or result['username']} !")
-                        st.balloons()
                         st.rerun()
                     else:
-                        st.error(f"❌ {result}")
+                        st.error(result)
         
-        # Comptes de test
-        st.info("""
-            **🧪 Comptes de test :**
-            - Admin : `admin` / `admin123`
-            - Demo : `demo` / `demo123`
-        """)
+        # Comptes de test discrets
+        st.markdown("""
+            <div style='text-align: center; margin-top: 2rem; color: rgba(255,255,255,0.4); font-size: 0.8rem;'>
+                Accès Test: admin / admin123
+            </div>
+        """, unsafe_allow_html=True)
 
 
 def check_authentication():

@@ -49,7 +49,7 @@ def show():
 # Fonction pour afficher la liste
 # =======================
     def afficher_fournisseurs():
-        search_term = st.text_input("🔍 Rechercher un fournisseur par nom ou email:")
+        search_term = st.text_input("Rechercher un fournisseur par nom ou email:")
 
         try:
             fournisseurs = database.get_all_fournisseurs()
@@ -96,7 +96,7 @@ def show():
 # =======================
 # Formulaire Ajouter Fournisseur
 # =======================
-    with st.expander("➕ Ajouter un fournisseur"):
+    with st.expander("Ajouter un fournisseur"):
         with st.form("ajout_fournisseur"):
             col1, col2 = st.columns(2)
             with col1:

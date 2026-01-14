@@ -2,7 +2,9 @@ import sqlite3
 import os
 
 # Use 'stock.db' in the current directory (where auth.py looks by default)
-DB_PATH = os.path.join(os.path.dirname(__file__), 'stock.db')
+# Use 'data/stock.db' consistent with the rest of the app
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_PATH = os.path.join(BASE_DIR, 'app', 'data', 'stock.db')
 
 def migrate():
     print(f"Migrating database at {DB_PATH}")

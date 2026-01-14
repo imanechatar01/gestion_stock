@@ -16,13 +16,13 @@ def show():
 
     col_header_1, col_header_2 = st.columns([1, 5])
     with col_header_1:
-        if st.button("⬅️ Retour", key="back_btn"):
+        if st.button("Retour", key="back_btn"):
             if 'mode' in st.session_state:
                 del st.session_state.mode
             st.rerun()
     
     with col_header_2:
-        st.markdown("## 👤 Enregistrement d'un Nouvel Employé")
+        st.markdown("## Enregistrement d'un Nouvel Employé")
 
     # Conteneur centré pour le formulaire
     with st.container():
@@ -42,17 +42,17 @@ def show():
                 role = st.selectbox("Rôle", ["user", "admin"], help="Admin a accès à tout par défaut")
 
             st.markdown("---")
-            st.markdown("### 🔒 Permissions d'Accès")
+            st.markdown("### Permissions d'Accès")
             st.info("Sélectionnez les parties de l'application accessibles pour cet employé.")
 
             # Liste des permissions disponibles
             perms_map = {
-                "dashboard": "🏠 Tableau de Bord",
-                "produits": "📦 Gestion Produits",
-                "inventaire": "📊 Inventaire & Stock",
-                "fournisseurs": "👥 Fournisseurs",
-                "rapports": "📈 Rapports (Lecture seule)",
-                "alertes": "⚠️ Alertes de Stock"
+                "dashboard": "Tableau de Bord",
+                "produits": "Gestion Produits",
+                "inventaire": "Inventaire & Stock",
+                "fournisseurs": "Fournisseurs",
+                "rapports": "Rapports (Lecture seule)",
+                "alertes": "Alertes de Stock"
             }
             
             # Admins have all permissions implicitly, but we save them anyway
@@ -68,16 +68,16 @@ def show():
 
             st.markdown("---")
             
-            submitted = st.form_submit_button("✨ Enregistrer l'Employé", type="primary", use_container_width=True)
+            submitted = st.form_submit_button("Enregistrer l'Employé", type="primary", use_container_width=True)
             
             if submitted:
                 # Validation basique
                 if not all([username, email, password, password_conf]):
-                    st.error("❌ Veuillez remplir tous les champs obligatoires (*)")
+                    st.error("Veuillez remplir tous les champs obligatoires (*)")
                     return
 
                 if password != password_conf:
-                    st.error("❌ Les mots de passe ne correspondent pas")
+                    st.error("Les mots de passe ne correspondent pas")
                     return
 
                 # Auth Manager
@@ -100,8 +100,8 @@ def show():
                 )
                 
                 if success:
-                    st.success(f"✅ {msg}")
+                    st.success(msg)
                     st.balloons()
                     # On ne retourne pas automatiquement pour laisser le temps de voir le message
                 else:
-                    st.error(f"❌ {msg}")
+                    st.error(msg)
