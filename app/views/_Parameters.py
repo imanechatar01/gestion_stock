@@ -8,170 +8,195 @@ from models import database
 # CSS personnalisé
 # =======================
 def show():
+    # CSS Premium pour la page Catégories
     st.markdown("""
     <style>
-    /* Remove default Streamlit top padding */
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 0rem !important;
+    .cat-header {
+        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+        padding: 2rem;
+        border-radius: 16px;
+        color: white;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     }
-
-    .param-header {
-        color: #1E40AF;
-        font-size: 24px;
-        font-weight: bold;
-        margin-bottom: 15px;
-        border-bottom: 2px solid #E5E7EB;
-        padding-bottom: 10px;
+    .cat-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 5px solid;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
     }
-    .stButton button {
-        width: 100%;
+    .cat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+        background-color: transparent;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 45px;
+        white-space: pre-line;
+        background-color: #f1f5f9;
+        border-radius: 8px;
+        color: #475569;
+        font-weight: 600;
+        border: none;
+        padding: 10px 20px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #2563eb !important;
+        color: white !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    st.header("⚙️ Paramètres de l'application")
+    # Header Stylisé
+    st.markdown("""
+        <div class="cat-header">
+            <h1 style="margin:0; color:white; font-size:2rem;">CATEGORIE</h1>
+            <p style="margin:0; opacity:0.8;">Architecture et Maintenance des Données</p>
+        </div>
+    """, unsafe_allow_html=True)
 
-    # Onglets pour organiser les paramètres
-    tab1, tab2, tab3 = st.tabs(["📂 Catégories", "💾 Maintenance & Export", "ℹ️ À propos"])
+    # Onglets modernisés
+    tab1, tab2, tab3 = st.tabs(["Structure des Catégories", "Maintenance Système", "Système"])
 
-    # =======================
     # TAB 1: GESTION DES CATÉGORIES
-    # =======================
     with tab1:
-        st.markdown("<div class='param-header'>Gestion des Catégories</div>", unsafe_allow_html=True)
+        col_form, col_list = st.columns([1, 2])
         
-        col1, col2 = st.columns([1, 2])
-        
-        with col1:
-            st.subheader("Nouvelle Catégorie")
-            with st.form("add_category"):
-                new_cat_name = st.text_input("Nom de la catégorie")
-                new_cat_color = st.color_picker("Couleur", "#3B82F6")
-                submitted = st.form_submit_button("Ajouter")
+        with col_form:
+            st.markdown("#### Nouvelle Catégorie")
+            with st.form("add_category", clear_on_submit=True):
+                new_cat_name = st.text_input("Dénomination")
+                new_cat_color = st.color_picker("Couleur Identitaire", "#3B82F6")
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                submitted = st.form_submit_button("Enregistrer la catégorie", use_container_width=True)
                 
                 if submitted:
                     if new_cat_name:
                         try:
-                            # Vérifier si existe déjà
                             cats = database.get_all_categories()
                             if any(c['nom'].lower() == new_cat_name.lower() for c in cats):
-                                st.error("Cette catégorie existe déjà.")
+                                st.error("Dénomination déjà existante.")
                             else:
                                 database.add_categorie(new_cat_name, new_cat_color)
-                                st.success(f"Catégorie '{new_cat_name}' ajoutée !")
+                                st.success(f"'{new_cat_name}' enregistrée")
+                                time.sleep(1)
                                 st.rerun()
                         except Exception as e:
-                            st.error(f"Erreur: {e}")
+                            st.error(f"Erreur système: {e}")
                     else:
-                        st.warning("Veuillez entrer un nom.")
+                        st.warning("Dénomination requise.")
 
-        with col2:
-            st.subheader("Catégories existantes")
+        with col_list:
+            st.markdown("#### Répertoire des Catégories")
             categories = database.get_all_categories()
+            
             if categories:
-                # Affichage en tags colorés
+                # Récupérer les nombres de produits par catégorie
+                prod_counts = {}
+                try:
+                    df_p = database.get_produits_dataframe()
+                    if not df_p.empty:
+                        prod_counts = df_p['categorie_nom'].value_counts().to_dict()
+                except: pass
+
                 for cat in categories:
-                    c1, c2 = st.columns([4, 1])
-                    with c1:
-                        st.markdown(
-                            f"""
-                            <div style="
-                                background-color: {cat['couleur']}20;
-                                border: 1px solid {cat['couleur']};
-                                padding: 10px;
-                                border-radius: 8px;
-                                margin-bottom: 8px;
-                                display: flex;
-                                align-items: center;
-                                gap: 10px;
-                            ">
-                                <div style="width: 20px; height: 20px; background-color: {cat['couleur']}; border-radius: 50%;"></div>
-                                <span style="font-weight: bold; font-size: 16px;">{cat['nom']}</span>
+                    count = prod_counts.get(cat['nom'], 0)
+                    
+                    c_main, c_del = st.columns([5, 1])
+                    with c_main:
+                        st.markdown(f"""
+                            <div class="cat-card" style="border-left-color: {cat['couleur']};">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <h4 style="margin:0; color:#1e293b;">{cat['nom']}</h4>
+                                        <span style="font-size:0.8rem; color:#64748b;">{count} produit(s) lié(s)</span>
+                                    </div>
+                                    <div style="width: 24px; height: 24px; background: {cat['couleur']}; border-radius: 6px;"></div>
+                                </div>
                             </div>
-                            """, 
-                            unsafe_allow_html=True
-                        )
-                    with c2:
-                         if st.button("🗑️", key=f"del_cat_{cat['id']}", help="Supprimer la catégorie et ses produits"):
-                            # Confirmation via session state ou direct (ici direct pour simplicité, avec warning clair dans le help)
+                        """, unsafe_allow_html=True)
+                    
+                    with c_del:
+                        st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+                        if st.button("Effacer", key=f"del_{cat['id']}", help="Attention: Supprime aussi les produits associés"):
                             try:
                                 database.delete_categorie(cat['id'])
-                                st.success(f"Catégorie '{cat['nom']}' supprimée !")
+                                st.success("Supprimé")
+                                time.sleep(0.5)
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Erreur: {e}")
+                                st.error("Erreur")
             else:
-                st.info("Aucune catégorie définie.")
+                st.info("Aucune catégorie configurée.")
 
-    # =======================
     # TAB 2: MAINTENANCE ET EXPORT
-    # =======================
     with tab2:
-        st.markdown("<div class='param-header'>Maintenance des Données</div>", unsafe_allow_html=True)
+        st.markdown("#### Intégrité et Exportation")
         
-        col_backup, col_export = st.columns(2)
+        m_col1, m_col2 = st.columns(2)
         
-        # Section Backup
-        with col_backup:
-            st.subheader("Sauvegarde")
-            st.markdown("Créez une copie de sécurité de la base de données actuelle.")
+        with m_col1:
+            st.markdown("""
+                <div style="background:#f8fafc; padding:1.5rem; border-radius:12px; border:1px solid #e2e8f0;">
+                    <h5 style="margin-top:0;">Base de données</h5>
+                    <p style="font-size:0.9rem; color:#64748b;">Sécurisez vos données en créant un point de restauration immédiat.</p>
+                </div>
+            """, unsafe_allow_html=True)
             
-            if st.button("📦 Créer une sauvegarde (Backup)"):
+            if st.button("Générer une sauvegarde .db", use_container_width=True):
                 try:
-                    backup_path = database.backup_database()
-                    st.success(f"Sauvegarde réussie !")
-                    st.code(backup_path)
+                    path = database.backup_database()
+                    st.success("Point de sauvegarde créé")
+                    st.caption(f"Localisation: {path}")
                 except Exception as e:
-                    st.error(f"Erreur lors de la sauvegarde : {e}")
+                    st.error(f"Échec: {e}")
 
-        # Section Export
-        with col_export:
-            st.subheader("Export CSV")
-            st.markdown("Téléchargez les données au format CSV.")
+        with m_col2:
+            st.markdown("""
+                <div style="background:#f8fafc; padding:1.5rem; border-radius:12px; border:1px solid #e2e8f0;">
+                    <h5 style="margin-top:0;">Exportation Analytique</h5>
+                    <p style="font-size:0.9rem; color:#64748b;">Extrayez vos données vers un format tableur standard (CSV).</p>
+                </div>
+            """, unsafe_allow_html=True)
             
-            # Export Produits
-            if st.button("📥 Exporter les Produits"):
-                try:
-                    csv_file = database.export_to_csv("produits")
-                    with open(csv_file, "rb") as f:
-                        st.download_button(
-                            label="Télécharger CSV Produits",
-                            data=f,
-                            file_name=csv_file,
-                            mime="text/csv"
-                        )
-                    # Nettoyage (optionnel, ou garder sur le serveur)
-                    # os.remove(csv_file) 
-                except Exception as e:
-                    st.error(f"Erreur export produits: {e}")
+            e_col1, e_col2 = st.columns(2)
+            with e_col1:
+                if st.button("Export Produits", use_container_width=True):
+                    try:
+                        f = database.export_to_csv("produits")
+                        st.download_button("Télécharger CSV", data=open(f, "rb"), file_name=f, mime="text/csv")
+                    except: st.error("Erreur")
+            with e_col2:
+                if st.button("Export Mouvements", use_container_width=True):
+                    try:
+                        f = database.export_to_csv("mouvements")
+                        st.download_button("Télécharger CSV", data=open(f, "rb"), file_name=f, mime="text/csv")
+                    except: st.error("Erreur")
 
-            # Export Mouvements
-            if st.button("📥 Exporter les Mouvements"):
-                try:
-                    csv_file = database.export_to_csv("mouvements")
-                    with open(csv_file, "rb") as f:
-                        st.download_button(
-                            label="Télécharger CSV Mouvements",
-                            data=f,
-                            file_name=csv_file,
-                            mime="text/csv"
-                        )
-                except Exception as e:
-                    st.error(f"Erreur export mouvements: {e}")
-
-    # =======================
     # TAB 3: À PROPOS
-    # =======================
     with tab3:
-        st.markdown("<div class='param-header'>À propos de StockFlow Pro</div>", unsafe_allow_html=True)
-        
-        st.info("""
-        **StockFlow Pro** est une application de gestion de stock simple et efficace.
-        
-        - **Version**: 1.0.0
-        - **Base de données**: SQLite
-        - **Développé avec**: Python & Streamlit
-        """)
-        
-        st.caption("© 2024 - Tous droits réservés")
+        st.markdown("""
+            <div style="background: white; padding: 2rem; border-radius: 12px; border: 1px solid #e2e8f0;">
+                <h4 style="margin-top:0;">StockFlow Pro Framework</h4>
+                <p>Système intelligent de gestion et flux logistique.</p>
+                <hr>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <p style="margin:0; color:#64748b; font-size:0.8rem;">ARCHITECTURE</p>
+                        <p style="margin:0; font-weight:600;">Python 3.12 / Streamlit</p>
+                    </div>
+                    <div>
+                        <p style="margin:0; color:#64748b; font-size:0.8rem;">MOTEUR DATA</p>
+                        <p style="margin:0; font-weight:600;">SQLite / Pandas</p>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        st.caption("© 2026 - LP SIL Excellence")

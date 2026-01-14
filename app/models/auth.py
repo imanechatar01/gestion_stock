@@ -1,21 +1,21 @@
-# app/models/auth.py - Système d'authentification intégré
 import streamlit as st
 import hashlib
 import sqlite3
 from datetime import datetime, timedelta
 import re
-import uuid
+import random
 from pathlib import Path
+from services.email_service import send_verification_code
+
+# Chemin de la base de données (même logique que database.py pour éviter les erreurs d'import)
+BASE_DIR = Path(__file__).parent.parent
+DB_PATH = BASE_DIR / "data" / "stock.db"
 
 class AuthManager:
     """Gestionnaire d'authentification qui utilise la même base de données"""
     
-    def __init__(self, db_path=None):
-        # Utiliser le même chemin que database.py
-        if db_path is None:
-            BASE_DIR = Path(__file__).parent.parent
-            db_path = BASE_DIR / "data" / "stock.db"
-        self.db_path = str(db_path)
+    def __init__(self, db_path=DB_PATH):
+        self.db_path = db_path
         self.init_auth_tables()
     
     def init_auth_tables(self):
@@ -32,6 +32,7 @@ class AuthManager:
                 password_hash TEXT NOT NULL,
                 full_name TEXT,
                 role TEXT DEFAULT 'user',
+                permissions TEXT DEFAULT 'dashboard,produits,inventaire,fournisseurs,rapports,alertes',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login TIMESTAMP,
                 is_active BOOLEAN DEFAULT 1
@@ -47,38 +48,41 @@ class AuthManager:
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-
-        # Table des sessions persistantes
+        
+        # Table des codes de réinitialisation
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS sessions (
-                token TEXT PRIMARY KEY,
-                user_id INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (id)
+            CREATE TABLE IF NOT EXISTS password_resets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                code TEXT NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         
         # Créer admin par défaut
+        admin_hash = self.hash_password("admin123")
         try:
-            admin_hash = self.hash_password("admin123")
             cursor.execute(
                 """INSERT INTO users (username, email, password_hash, full_name, role) 
                    VALUES (?, ?, ?, ?, ?)""",
                 ("admin", "admin@stockflow.com", admin_hash, "Administrateur", "admin")
             )
-            
-            # Utilisateur demo
-            demo_hash = self.hash_password("demo123")
+        except sqlite3.IntegrityError:
+            pass  # Admin existe déjà
+        
+        # Utilisateur demo
+        demo_hash = self.hash_password("demo123")
+        try:
             cursor.execute(
                 """INSERT INTO users (username, email, password_hash, full_name, role) 
                    VALUES (?, ?, ?, ?, ?)""",
                 ("demo", "demo@stockflow.com", demo_hash, "Utilisateur Demo", "user")
             )
-            
-            conn.commit()
         except sqlite3.IntegrityError:
-            pass
+            pass  # Demo existe déjà
+        
+        conn.commit()
         
         conn.close()
     
@@ -120,60 +124,6 @@ class AuthManager:
         conn.close()
         return attempts < 5
     
-    def create_session(self, user_id):
-        """Crée une nouvelle session persistante"""
-        token = str(uuid.uuid4())
-        expires_at = datetime.now() + timedelta(days=7)  # Valide 7 jours
-        
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-            (token, user_id, expires_at)
-        )
-        conn.commit()
-        conn.close()
-        return token
-
-    def delete_session(self, token):
-        """Supprime une session"""
-        if not token:
-            return
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM sessions WHERE token = ?", (token,))
-        conn.commit()
-        conn.close()
-
-    def validate_token(self, token):
-        """Vérifie si un token est valide et retourne l'utilisateur associé"""
-        if not token:
-            return None
-            
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            """SELECT u.id, u.username, u.email, u.full_name, u.role 
-               FROM sessions s 
-               JOIN users u ON s.user_id = u.id 
-               WHERE s.token = ? AND s.expires_at > ?""",
-            (token, datetime.now())
-        )
-        
-        user = cursor.fetchone()
-        conn.close()
-        
-        if user:
-            return {
-                'id': user[0],
-                'username': user[1],
-                'email': user[2],
-                'full_name': user[3],
-                'role': user[4]
-            }
-        return None
-
     def log_attempt(self, username, success):
         """Enregistre une tentative de connexion"""
         conn = sqlite3.connect(self.db_path)
@@ -185,7 +135,7 @@ class AuthManager:
         conn.commit()
         conn.close()
     
-    def authenticate(self, username, password, remember=False):
+    def authenticate(self, username, password):
         """Authentifie un utilisateur"""
         if not self.check_attempts(username):
             return False, "Trop de tentatives. Réessayez dans 15 minutes."
@@ -195,7 +145,7 @@ class AuthManager:
         
         password_hash = self.hash_password(password)
         cursor.execute(
-            """SELECT id, username, email, full_name, role, is_active 
+            """SELECT id, username, email, full_name, role, is_active, permissions
                FROM users WHERE username=? AND password_hash=?""",
             (username, password_hash)
         )
@@ -215,21 +165,18 @@ class AuthManager:
                 'username': user[1],
                 'email': user[2],
                 'full_name': user[3],
-                'role': user[4]
+                'role': user[4],
+                'permissions': user[6].split(',') if user[6] else []
             }
             
-            token = None
-            if remember:
-                token = self.create_session(user[0])
-            
             conn.close()
-            return True, (user_data, token)
+            return True, user_data
         
         self.log_attempt(username, False)
         conn.close()
         return False, "Identifiants incorrects"
     
-    def register(self, username, email, password, full_name=""):
+    def register(self, username, email, password, full_name="", role="user", permissions=None):
         """Enregistre un nouvel utilisateur"""
         if len(username) < 3:
             return False, "Nom d'utilisateur trop court (min 3)"
@@ -244,12 +191,16 @@ class AuthManager:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # Permissions par défaut si non spécifiées
+        if permissions is None:
+            permissions = "dashboard,produits,inventaire,fournisseurs,rapports,alertes"
+
         try:
             password_hash = self.hash_password(password)
             cursor.execute(
-                """INSERT INTO users (username, email, password_hash, full_name, role) 
-                   VALUES (?, ?, ?, ?, ?)""",
-                (username, email, password_hash, full_name, "user")
+                """INSERT INTO users (username, email, password_hash, full_name, role, permissions) 
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (username, email, password_hash, full_name, role, permissions)
             )
             conn.commit()
             conn.close()
@@ -261,302 +212,228 @@ class AuthManager:
                 return False, "Ce nom d'utilisateur existe déjà"
             return False, "Cet email est déjà utilisé"
 
+    def request_password_reset(self, email):
+        """Génère un code et tente de l'envoyer"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Vérifier si l'email existe
+        cursor.execute("SELECT id FROM users WHERE email=?", (email,))
+        if not cursor.fetchone():
+            conn.close()
+            return False, "Aucun compte associé à cet email"
+        
+        # Générer code 6 chiffres
+        code = f"{random.randint(100000, 999999)}"
+        expires_at = datetime.now() + timedelta(minutes=15)
+        
+        # Supprimer anciens codes pour cet email
+        cursor.execute("DELETE FROM password_resets WHERE email=?", (email,))
+        
+        # Enregistrer nouveau code
+        cursor.execute(
+            "INSERT INTO password_resets (email, code, expires_at) VALUES (?, ?, ?)",
+            (email, code, expires_at)
+        )
+        conn.commit()
+        conn.close()
+        
+        # Envoyer email
+        return send_verification_code(email, code)
+
+    def verify_reset_code(self, email, code):
+        """Vérifie si le code est valide"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT id FROM password_resets WHERE email=? AND code=? AND expires_at > ?",
+            (email, code, datetime.now())
+        )
+        valid = cursor.fetchone() is not None
+        conn.close()
+        return valid
+
+    def reset_password(self, email, code, new_password):
+        """Réinitialise le mot de passe après vérification du code"""
+        if not self.verify_reset_code(email, code):
+            return False, "Code invalide ou expiré"
+        
+        is_valid, msg = self.validate_password(new_password)
+        if not is_valid:
+            return False, msg
+            
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        password_hash = self.hash_password(new_password)
+        cursor.execute(
+            "UPDATE users SET password_hash=? WHERE email=?",
+            (password_hash, email)
+        )
+        
+        # Supprimer le code utilisé
+        cursor.execute("DELETE FROM password_resets WHERE email=?", (email,))
+        
+        conn.commit()
+        conn.close()
+        return True, "Mot de passe réinitialisé avec succès !"
+
 
 def show_login_page():
-    """Page de connexion moderne"""
+    """Page de connexion moderne et épurée"""
     
     # CSS pour la page de login
     st.markdown("""
         <style>
-        /* Import Font */
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
-        
-        html, body, [class*="css"] {
-            font-family: 'Poppins', sans-serif;
-        }
-
-        /* Modern Background */
         .stApp {
-            background-image: 
-                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
-                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
-            background-size: cover;
-            background-attachment: fixed;
-            background-color: #0f172a;
+            background-color: #1e1b4b;
         }
-        
-        /* Glassmorphism Card */
         div[data-testid="stForm"] {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            background: white;
+            padding: 3.5rem;
             border-radius: 24px;
-            padding: 3rem;
-            color: white;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            max-width: 480px;
+            margin: 0 auto;
+            border: 1px solid rgba(255,255,255,0.1);
         }
-
-        /* Input Fields Styling */
-        div[data-baseweb="input"] {
-            background-color: rgba(255, 255, 255, 0.05) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        .login-header h1 {
+            color: white;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 0.5rem;
+        }
+        .stButton > button {
+            background-color: #2563eb !important;
+            color: white !important;
             border-radius: 12px !important;
-            color: white !important;
+            padding: 0.75rem !important;
+            font-weight: 600 !important;
+            border: none !important;
+            height: 50px !important;
         }
-        
-        div[data-baseweb="input"] > div {
-            background-color: transparent !important;
-            color: white !important;
-        }
-        
-        /* Input Text Color */
-        input {
-            color: white !important;
-        }
-
-        /* Labels */
-        .stMarkdown label, p, h1, h2, h3 {
-            color: white !important;
-        }
-        
-        /* Button Styling */
-        button[kind="secondaryFormSubmit"] {
-            background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
-            border: none;
-            color: white !important;
-            font-weight: 600;
-            padding: 0.75rem 1.5rem;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);
-        }
-        
-        button[kind="secondaryFormSubmit"]:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.5);
-            background: linear-gradient(90deg, #4338ca 0%, #6d28d9 100%);
-        }
-        
-        /* Tabs Styling */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 20px;
-            background-color: transparent;
-        }
-
-        .stTabs [data-baseweb="tab"] {
-            height: 50px;
-            background-color: rgba(255,255,255,0.05);
-            border-radius: 10px;
-            color: white;
-            border: none;
-            padding: 0 20px;
-        }
-
-        .stTabs [data-baseweb="tab"][aria-selected="true"] {
-            background-color: rgba(255,255,255,0.2);
-            font-weight: bold;
-        }
-
-        /* Checkbox */
-        label[data-baseweb="checkbox"] {
-            color: white !important;
-        }
-        
-        /* Remove default Streamlit top padding */
-        .block-container {
-            padding-top: 1rem !important;
-            padding-bottom: 0rem !important;
-        }
-        
-        /* Hide header elements if present */
-        header[data-testid="stHeader"] {
-            background-color: transparent;
+        .stTextInput > div > div > input {
+            border-radius: 12px !important;
+            height: 48px !important;
         }
         </style>
     """, unsafe_allow_html=True)
     
     # Centrer le contenu
-    col1, col2, col3 = st.columns([1, 2, 1])
+    _, col_center, _ = st.columns([1, 2, 1])
     
-    with col2:
-        # Logo et titre
+    with col_center:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        
+        # Logo et titre minimalist
         st.markdown("""
-            <div style='text-align: center; margin-bottom: 3rem; margin-top: 2rem;'>
-                <div style='
-                    background: rgba(255,255,255,0.1); 
-                    width: 120px; 
-                    height: 120px; 
-                    border-radius: 50%; 
-                    display: flex; 
-                    align-items: center; 
-                    justify-content: center; 
-                    margin: 0 auto 1.5rem auto;
-                    backdrop-filter: blur(10px);
-                    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-                    border: 1px solid rgba(255,255,255,0.2);
-                '>
-                    <img src='https://cdn-icons-png.flaticon.com/512/869/869869.png' width='70' style='filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));'>
-                </div>
-                <h1 style='
-                    color: white; 
-                    font-size: 2.5rem; 
-                    font-weight: 700; 
-                    margin-bottom: 0.5rem;
-                    background: linear-gradient(to right, #fff, #a5b4fc);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                '>
-                    StockFlow Pro
-                </h1>
-                <p style='color: #94a3b8 !important; font-size: 1.1rem; margin-top: 0;'>
-                    Système de Gestion de Stock Avancé
+            <div class='login-header' style='text-align: center; margin-bottom: 3rem;'>
+                <h1 style="color:white; font-size: 2.5rem; margin-bottom:0;">StockFlow Pro</h1>
+                <p style='color: rgba(255,255,255,0.6); font-size: 1rem; text-transform: uppercase; letter-spacing: 2px;'>
+                    Gestion de Flux Intelligent
                 </p>
             </div>
         """, unsafe_allow_html=True)
         
-        # Tabs pour Login / Register
-        tab1, tab2 = st.tabs(["🔐 Connexion", "📝 Inscription"])
-        
+        # Formulaire de connexion
         auth = AuthManager()
         
-        # TAB CONNEXION
-        with tab1:
+        # État du mode reset
+        if 'reset_mode' not in st.session_state:
+            st.session_state.reset_mode = False
+        if 'reset_step' not in st.session_state:
+            st.session_state.reset_step = 1
+        if 'reset_email' not in st.session_state:
+            st.session_state.reset_email = ""
+
+        if not st.session_state.reset_mode:
+            # --- ÉCRAN CONNEXION ---
             with st.form("login_form", clear_on_submit=False):
-                st.markdown("### Connectez-vous à votre compte")
+                st.markdown("<h3 style='text-align:center; color:#1e293b; margin-bottom:2rem;'>Connexion</h3>", unsafe_allow_html=True)
                 
-                username = st.text_input(
-                    "👤 Nom d'utilisateur",
-                    placeholder="Entrez votre nom d'utilisateur"
-                )
+                username = st.text_input("Nom d'utilisateur", placeholder="Identifiant")
+                password = st.text_input("Mot de passe", type="password", placeholder="••••••••")
                 
-                password = st.text_input(
-                    "🔒 Mot de passe",
-                    type="password",
-                    placeholder="Entrez votre mot de passe"
-                )
-                
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    remember = st.checkbox("Se souvenir de moi")
-                with col_b:
-                    st.markdown("[ ](#)")
-                
-                submit = st.form_submit_button("🚀 Se connecter", use_container_width=True)
+                st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+                submit = st.form_submit_button("Se connecter", use_container_width=True)
                 
                 if submit:
                     if not username or not password:
-                        st.error("❌ Veuillez remplir tous les champs")
+                        st.error("Veuillez remplir tous les champs")
                     else:
-                        success, result = auth.authenticate(username, password, remember)
-                        
+                        success, result = auth.authenticate(username, password)
                         if success:
-                            user_data, token = result
                             st.session_state.authenticated = True
-                            st.session_state.user = user_data
-                            
-                            # Sauvegarder le token si "Se souvenir de moi" est coché
-                            if token:
-                                try:
-                                    st.query_params["token"] = token
-                                except AttributeError:
-                                    st.experimental_set_query_params(token=token)
-                            
-                            st.success(f"✅ Bienvenue {user_data['full_name'] or user_data['username']} !")
-                            st.balloons()
+                            st.session_state.user = result
                             st.rerun()
                         else:
-                            st.error(f"❌ {result}")
+                            st.error(result)
+
+                if st.form_submit_button("Mot de passe oublié ?", use_container_width=True):
+                    st.session_state.reset_mode = True
+                    st.session_state.reset_step = 1
+                    st.rerun()
             
-            # Comptes de test
-            st.info("""
-                **🧪 Comptes de test :**
-                - Admin : `admin` / `admin123`
-                - Demo : `demo` / `demo123`
-            """)
-        
-        # TAB INSCRIPTION
-        with tab2:
-            with st.form("register_form", clear_on_submit=True):
-                st.markdown("### Créer un nouveau compte")
+            # Nouveau : Lien vers la création de compte (Hors formulaire)
+            st.markdown("<div style='height:15px;'></div>", unsafe_allow_html=True)
+            if st.button("Pas encore de compte ? S'enregistrer ici", use_container_width=True):
+                st.session_state.mode = 'register'
+                st.rerun()
+        else:
+            # --- ÉCRAN RÉINITIALISATION ---
+            with st.form("reset_form"):
+                st.markdown("<h3 style='text-align:center; color:#1e293b; margin-bottom:1rem;'>Récupération</h3>", unsafe_allow_html=True)
                 
-                new_fullname = st.text_input(
-                    "👤 Nom complet",
-                    placeholder="Ex: Jean Dupont"
-                )
-                
-                new_username = st.text_input(
-                    "🆔 Nom d'utilisateur",
-                    placeholder="Ex: jdupont"
-                )
-                
-                new_email = st.text_input(
-                    "📧 Email",
-                    placeholder="exemple@email.com"
-                )
-                
-                new_password = st.text_input(
-                    "🔒 Mot de passe",
-                    type="password",
-                    placeholder="Min 6 caractères, 1 lettre, 1 chiffre",
-                    help="Le mot de passe doit contenir au moins 6 caractères, une lettre et un chiffre"
-                )
-                
-                new_password_confirm = st.text_input(
-                    "🔒 Confirmer le mot de passe",
-                    type="password",
-                    placeholder="Répétez le mot de passe"
-                )
-                
-                accept_terms = st.checkbox("J'accepte les conditions d'utilisation")
-                
-                submit_register = st.form_submit_button("✨ Créer mon compte", use_container_width=True)
-                
-                if submit_register:
-                    if not all([new_username, new_email, new_password, new_password_confirm]):
-                        st.error("❌ Veuillez remplir tous les champs")
-                    elif new_password != new_password_confirm:
-                        st.error("❌ Les mots de passe ne correspondent pas")
-                    elif not accept_terms:
-                        st.error("❌ Veuillez accepter les conditions d'utilisation")
-                    else:
-                        success, message = auth.register(
-                            new_username, 
-                            new_email, 
-                            new_password,
-                            new_fullname
-                        )
-                        
-                        if success:
-                            st.success(f"✅ {message}")
-                            st.info("Vous pouvez maintenant vous connecter avec vos identifiants")
+                if st.session_state.reset_step == 1:
+                    st.info("💡 Note: Le code sera affiché dans la console du terminal (Simulation)")
+                    st.markdown("<p style='text-align:center; font-size:0.9rem; color:#64748b;'>Entrez votre email pour recevoir un code</p>", unsafe_allow_html=True)
+                    email = st.text_input("Email enregistré", placeholder="exemple@stock.com")
+                    
+                    if st.form_submit_button("Envoyer le code", use_container_width=True):
+                        if not auth.validate_email(email):
+                            st.error("Email invalide")
                         else:
-                            st.error(f"❌ {message}")
+                            success, msg = auth.request_password_reset(email)
+                            if success:
+                                st.session_state.reset_email = email
+                                st.session_state.reset_step = 2
+                                # st.success(msg) # Retiré pour éviter double message avec toast
+                                st.rerun()
+                            else:
+                                st.error(msg)
+                
+                elif st.session_state.reset_step == 2:
+                    st.markdown(f"<p style='text-align:center; font-size:0.9rem; color:#64748b;'>Code envoyé à {st.session_state.reset_email}</p>", unsafe_allow_html=True)
+                    code = st.text_input("Code de vérification (6 chiffres)", placeholder="123456")
+                    new_password = st.text_input("Nouveau mot de passe", type="password", placeholder="••••••••")
+                    
+                    if st.form_submit_button("Réinitialiser le mot de passe", use_container_width=True):
+                        success, msg = auth.reset_password(st.session_state.reset_email, code, new_password)
+                        if success:
+                            st.success(msg)
+                            st.session_state.reset_mode = False
+                            st.session_state.reset_step = 1
+                        else:
+                            st.error(msg)
+            
+            if st.button("← Retour à la connexion", use_container_width=True):
+                st.session_state.reset_mode = False
+                st.session_state.reset_step = 1
+                st.rerun()
+        
+        # Comptes de test discrets
+        st.markdown("""
+            <div style='text-align: center; margin-top: 2rem; color: rgba(255,255,255,0.4); font-size: 0.8rem;'>
+                Accès Test: admin / admin123
+            </div>
+        """, unsafe_allow_html=True)
 
 
 def check_authentication():
     """Vérifie si l'utilisateur est authentifié"""
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
-    
-    # Vérification du token si non connecté
-    if not st.session_state.authenticated:
-        # Compatibilité Streamlit < 1.30
-        try:
-            query_params = st.query_params
-            token = query_params.get("token")
-        except AttributeError:
-            query_params = st.experimental_get_query_params()
-            token = query_params.get("token", [None])[0]
-        
-        if token:
-            auth = AuthManager()
-            user = auth.validate_token(token)
-            if user:
-                st.session_state.authenticated = True
-                st.session_state.user = user
-                st.rerun()
     
     if not st.session_state.authenticated:
         show_login_page()
@@ -565,24 +442,6 @@ def check_authentication():
 
 def logout():
     """Déconnecte l'utilisateur"""
-    # Supprimer le token si présent
-    try:
-        # Nouveau Streamlit
-        token = st.query_params.get("token")
-        if token:
-            auth = AuthManager()
-            auth.delete_session(token)
-            if "token" in st.query_params:
-                del st.query_params["token"]
-    except AttributeError:
-        # Ancien Streamlit
-        params = st.experimental_get_query_params()
-        token = params.get("token", [None])[0]
-        if token:
-            auth = AuthManager()
-            auth.delete_session(token)
-            st.experimental_set_query_params()  # Clear all params
-            
     st.session_state.authenticated = False
     if 'user' in st.session_state:
         del st.session_state.user

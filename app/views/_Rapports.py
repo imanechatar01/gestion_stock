@@ -33,13 +33,13 @@ def show():
     </style>
     """, unsafe_allow_html=True)
 
-    st.title("📈 Rapports & Analyses")
+    st.title("Rapports & Analyses")
 
     # =======================
     # FILTRES
     # =======================
     with st.sidebar:
-        st.header("🔍 Filtres")
+        st.header("Filtres")
         
         # Filtre Date
         date_debut = st.date_input("Date début", value=datetime.today() - timedelta(days=30))
@@ -53,28 +53,9 @@ def show():
         produit_options = ["Tous"] + [f"{p['nom']} ({p['reference']})" for p in all_products]
         selected_prod_label = st.selectbox("Produit", produit_options)
         
-        st.markdown("---")
-        st.header("📄 Export Rapport PDF")
-        periode_export = st.selectbox(
-            "Période du rapport PDF", 
-            ["Cette Semaine", "Ce Mois", "Cette Année"],
-            key="pdf_period_selector"
-        )
-        
-        # Si le sélecteur change, on réinitialise le rapport prêt
-        if "last_pdf_period" not in st.session_state:
-            st.session_state.last_pdf_period = periode_export
-            
-        if st.session_state.last_pdf_period != periode_export:
-            if 'pdf_report' in st.session_state:
-                del st.session_state.pdf_report
-            st.session_state.last_pdf_period = periode_export
         
         selected_prod_id = None
         if selected_prod_label != "Tous":
-            # Extraire l'ID du produit sélectionné (un peu hacky via le nom, mais ça marche pour la démo)
-            # Idéalement on map le label -> ID
-            # Ici on va chercher l'objet correspondant dans la liste
             for p in all_products:
                 if f"{p['nom']} ({p['reference']})" == selected_prod_label:
                     selected_prod_id = p['id']
@@ -92,8 +73,73 @@ def show():
     mouvements = database.get_mouvements(filtres=filters)
     df_mvt = pd.DataFrame(mouvements)
 
+    # =======================
+    # ZONE D'EXPORT PDF (VISIBLE)
+    # =======================
+    with st.expander("📄 EXPORTER UN RAPPORT PDF", expanded=True):
+        col_p, col_b, col_d = st.columns([2, 1, 1])
+        with col_p:
+            periode_export = st.selectbox(
+                "Période du rapport", 
+                [
+                    "Cette Semaine (Hebdo)", 
+                    "Ce Mois (Mensuel)", 
+                    "Cette Année (Annuel)",
+                    "Dates filtrées (Personnalisé)"
+                ],
+                key="pdf_period_selector_main"
+            )
+            
+            # Si le sélecteur change, on réinitialise le rapport prêt
+            if "last_pdf_period_main" not in st.session_state:
+                st.session_state.last_pdf_period_main = periode_export
+                
+            if st.session_state.last_pdf_period_main != periode_export:
+                if 'pdf_report' in st.session_state:
+                    del st.session_state.pdf_report
+                st.session_state.last_pdf_period_main = periode_export
+
+        with col_b:
+            if st.button("📑 Générer PDF", use_container_width=True, type="primary"):
+                with st.spinner("Génération..."):
+                    fin_dt = datetime.now()
+                    if "Semaine" in periode_export:
+                        debut_dt = fin_dt - timedelta(days=fin_dt.weekday())
+                        debut_dt = debut_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+                        pl = "Hebdomadaire"
+                    elif "Mois" in periode_export:
+                        debut_dt = fin_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                        pl = "Mensuel"
+                    elif "Année" in periode_export:
+                        debut_dt = fin_dt.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                        pl = "Annuel"
+                    else: # Personnalisé
+                        debut_dt = datetime.combine(date_debut, datetime.min.time())
+                        fin_dt = datetime.combine(date_fin, datetime.max.time())
+                        pl = f"Personnalisé"
+                    
+                    pdf_filters = {'date_debut': debut_dt, 'date_fin': fin_dt}
+                    stats_p = database.get_statistiques()
+                    mvt_p = database.get_mouvements(filtres=pdf_filters)
+                    
+                    st.session_state.pdf_report = generate_stock_report(stats_p, mvt_p, f"Rapport {pl}")
+                    st.session_state.pdf_filename = f"rapport_stock_{pl.lower()}_{datetime.now().strftime('%Y%m%d')}.pdf"
+                    st.toast("Rapport généré avec succès !")
+        
+        with col_d:
+            if 'pdf_report' in st.session_state:
+                st.download_button(
+                    label="⬇️ Télécharger",
+                    data=st.session_state.pdf_report,
+                    file_name=st.session_state.pdf_filename,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            else:
+                st.button("⬇️ Télécharger", disabled=True, use_container_width=True)
+
     # Onglets
-    tab1, tab2 = st.tabs(["📝 Historique Détaillé", "📊 Analyse Graphique"])
+    tab1, tab2 = st.tabs(["Historique Détaillé", "Analyse Graphique"])
 
     # =======================
     # TAB 1: HISTORIQUE
@@ -118,46 +164,14 @@ def show():
             # Export CSV
             csv = df_display.to_csv(index=False).encode('utf-8')
             st.download_button(
-                "📥 Télécharger l'historique (CSV)",
+                "Télécharger l'historique (CSV)",
                 data=csv,
                 file_name=f"rapport_stock_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv",
                 use_container_width=True
             )
             
-            # --- PDF Export Logic ---
-            st.markdown("---")
-            if st.button("📑 Préparer le Rapport PDF Général", use_container_width=True):
-                with st.spinner("Génération du PDF en cours..."):
-                    # Calculer les dates selon la période choisie
-                    fin = datetime.now()
-                    if periode_export == "Cette Semaine":
-                        debut = fin - timedelta(days=fin.weekday())
-                        debut = debut.replace(hour=0, minute=0, second=0, microsecond=0)
-                    elif periode_export == "Ce Mois":
-                        debut = fin.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                    else: # Cette Année
-                        debut = fin.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-                    
-                    # Récupérer les données pour le PDF
-                    pdf_filters = {'date_debut': debut.date(), 'date_fin': fin.date()}
-                    stats_global = database.get_statistiques()
-                    period_mvt = database.get_mouvements(filtres=pdf_filters)
-                    
-                    # Stocker dans le state
-                    st.session_state.pdf_report = generate_stock_report(stats_global, period_mvt, f"Général ({periode_export})")
-                    st.session_state.pdf_filename = f"rapport_stock_{periode_export.lower().replace(' ', '_')}_{fin.strftime('%Y%m%d')}.pdf"
-            
-            # Afficher le bouton de téléchargement si le rapport est prêt
-            if 'pdf_report' in st.session_state:
-                st.success("✅ Rapport PDF prêt !")
-                st.download_button(
-                    label="⬇️ Télécharger le Rapport PDF",
-                    data=st.session_state.pdf_report,
-                    file_name=st.session_state.pdf_filename,
-                    mime="application/pdf",
-                    use_container_width=True
-                )
+
         else:
             st.info("Aucun mouvement trouvé pour ces filtres.")
 
@@ -185,11 +199,15 @@ def show():
                 st.subheader("Top Produits (Volume)")
                 # Group by Product
                 prod_gb = df_mvt.groupby('produit_nom')['quantite'].sum().nlargest(10).sort_values()
+                prod_df = prod_gb.reset_index()
+                prod_df.columns = ['Produit', 'Volume']
+                
                 fig_bar = px.bar(
-                    x=prod_gb.values,
-                    y=prod_gb.index,
+                    prod_df,
+                    x='Volume',
+                    y='Produit',
                     orientation='h',
-                    labels={'x': 'Volume Total', 'y': 'Produit'}
+                    labels={'Volume': 'Volume Total', 'Produit': 'Produit'}
                 )
                 st.plotly_chart(fig_bar, use_container_width=True)
 

@@ -132,6 +132,7 @@ def init_database():
         seuil_min INTEGER DEFAULT 5,
         prix_achat REAL DEFAULT 0.0,
         prix_vente REAL DEFAULT 0.0,
+        image_url TEXT,
         date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (categorie_id) REFERENCES categories(id),
         FOREIGN KEY (fournisseur_id) REFERENCES fournisseurs(id)
@@ -151,48 +152,26 @@ def init_database():
     )
     ''')
     
-    # ==========================================
-    # TABLES AUTHENTIFICATION
-    # ==========================================
-    
-    # Table des utilisateurs
+    # Table alertes_traitement
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            full_name TEXT,
-            role TEXT DEFAULT 'user',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_login TIMESTAMP,
-            is_active BOOLEAN DEFAULT 1
-        )
-    ''')
-    
-    # Table des tentatives de connexion
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS login_attempts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            success BOOLEAN,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Table des sessions persistantes
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sessions (
-            token TEXT PRIMARY KEY,
-            user_id INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            expires_at TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
+    CREATE TABLE IF NOT EXISTS alertes_traitement (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        alerte_id TEXT NOT NULL,
+        date_traitement TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        traite_par TEXT,
+        action_prise TEXT,
+        notes TEXT
+    )
     ''')
     
     conn.commit()
     conn.close()
+    
+    # Initialiser les tables d'authentification
+    from .auth import AuthManager
+    auth = AuthManager()
+    auth.init_auth_tables()
+    
     logger.info("✅ Base de données initialisée")
     
     # Créer des données de démo si base vide
@@ -246,7 +225,7 @@ def create_demo_data():
     ]
     
     for nom, couleur in categories:
-        cursor.execute("INSERT INTO categories (nom, couleur) VALUES (?, ?)", (nom, couleur))
+        cursor.execute("INSERT OR IGNORE INTO categories (nom, couleur) VALUES (?, ?)", (nom, couleur))
     
     # Fournisseurs
     fournisseurs = [
@@ -256,7 +235,7 @@ def create_demo_data():
     ]
     
     for nom, email, tel in fournisseurs:
-        cursor.execute("INSERT INTO fournisseurs (nom, email, telephone) VALUES (?, ?, ?)", (nom, email, tel))
+        cursor.execute("INSERT OR IGNORE INTO fournisseurs (nom, email, telephone) VALUES (?, ?, ?)", (nom, email, tel))
     
     # Produits
     produits = [
@@ -269,7 +248,7 @@ def create_demo_data():
     
     for ref, nom, desc, cat_id, four_id, qte, seuil, prix_a, prix_v in produits:
         cursor.execute('''
-            INSERT INTO produits 
+            INSERT OR IGNORE INTO produits 
             (reference, nom, description, categorie_id, fournisseur_id, quantite, seuil_min, prix_achat, prix_vente)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ref, nom, desc, cat_id, four_id, qte, seuil, prix_a, prix_v))
@@ -393,7 +372,8 @@ def add_produit(produit_data):
         'quantite': 0,
         'seuil_min': 5,
         'prix_achat': 0.0,
-        'prix_vente': 0.0
+        'prix_vente': 0.0,
+        'image_url': None
     }
     
     data = {**defaults, **produit_data}
@@ -402,21 +382,64 @@ def add_produit(produit_data):
     query = """
         INSERT INTO produits 
         (reference, nom, description, categorie_id, fournisseur_id, 
-         quantite, seuil_min, prix_achat, prix_vente)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         quantite, seuil_min, prix_achat, prix_vente, image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     
     params = (
         data['reference'], data['nom'], data['description'],
         data['categorie_id'], data['fournisseur_id'],
         data['quantite'], data['seuil_min'],
-        data['prix_achat'], data['prix_vente']
+        data['prix_achat'], data['prix_vente'],
+        data['image_url']
     )
     
     cursor = execute_query(query, params)
     logger.info(f"Nouveau produit créé: {data['nom']} (ID: {cursor.lastrowid})")
     
     return cursor.lastrowid
+
+def update_produit(produit_id, produit_data):
+    """
+    Met à jour les informations d'un produit
+    """
+    # Validation des champs requis (si présents dans produit_data)
+    if 'reference' in produit_data and not produit_data['reference']:
+        raise ValueError("La référence ne peut pas être vide")
+    if 'nom' in produit_data and not produit_data['nom']:
+        raise ValueError("Le nom ne peut pas être vide")
+        
+    # Vérifier l'unicité de la référence si elle change
+    if 'reference' in produit_data:
+        existing = fetch_one("SELECT id FROM produits WHERE reference = ? AND id != ?", 
+                            (produit_data['reference'], produit_id))
+        if existing:
+            raise ValueError(f"La référence {produit_data['reference']} est déjà utilisée par un autre produit")
+
+    # Construire dynamiquement la requête UPDATE
+    params = []
+    fields = []
+    
+    # Liste des champs autorisables à la mise à jour
+    updatable_fields = [
+        'reference', 'nom', 'description', 'categorie_id', 
+        'fournisseur_id', 'seuil_min', 'prix_achat', 'prix_vente', 'image_url'
+    ]
+    
+    for field in updatable_fields:
+        if field in produit_data:
+            fields.append(f"{field} = ?")
+            params.append(produit_data[field])
+    
+    if not fields:
+        return False # Rien à mettre à jour
+        
+    query = f"UPDATE produits SET {', '.join(fields)} WHERE id = ?"
+    params.append(produit_id)
+    
+    execute_query(query, params)
+    logger.info(f"Produit ID {produit_id} mis à jour")
+    return True
 
 def update_stock(produit_id, quantite, type_mouvement="ajustement", motif="", utilisateur="admin", document_ref=""):
     """
@@ -487,6 +510,74 @@ def get_produits_en_alerte():
         WHERE p.quantite <= p.seuil_min
         ORDER BY p.quantite ASC
     """)
+
+# ============================================================================
+# FONCTIONS ALERTES
+# ============================================================================
+
+def get_alertes_actives():
+    """Récupère toutes les alertes de stock actives"""
+    produits = get_produits_en_alerte()
+    alertes = []
+    
+    for p in produits:
+        qte = p['quantite']
+        seuil = p['seuil_min']
+        
+        urgence = "MOYENNE"
+        if qte == 0:
+            urgence = "CRITIQUE"
+        elif qte <= seuil * 0.5:
+            urgence = "HAUTE"
+            
+        alertes.append({
+            'id': f"STOCK-{p['id']}",
+            'type': 'stock_bas',
+            'titre': f"Stock bas: {p['nom']}",
+            'description': f"Il ne reste que {qte} unités (Seuil: {seuil})",
+            'urgence': urgence,
+            'date_detection': datetime.now().isoformat(),
+            'produit_id': p['id'],
+            'produit_nom': p['nom'],
+            'categorie': p['categorie_nom'],
+            'statut': 'active',
+            'action_requise': 'Commander du stock'
+        })
+    
+    return alertes
+
+def traiter_alerte(alerte_id, traite_par, action_prise, notes=""):
+    """Enregistre le traitement d'une alerte"""
+    return execute_query("""
+        INSERT INTO alertes_traitement (alerte_id, traite_par, action_prise, notes)
+        VALUES (?, ?, ?, ?)
+    """, (alerte_id, traite_par, action_prise, notes))
+
+def get_statistiques_alertes():
+    """Calcule les statistiques détaillées des alertes"""
+    # On récupère toutes les alertes actives
+    alertes = get_alertes_actives()
+    
+    # On récupère le nombre d'alertes traitées (historique)
+    res_traitees = fetch_one("SELECT COUNT(*) as count FROM alertes_traitement")
+    nb_traitees = res_traitees['count'] if res_traitees else 0
+    
+    stats = {
+        'total': len(alertes),
+        'critiques': len([a for a in alertes if a['urgence'] == 'CRITIQUE']),
+        'hautes': len([a for a in alertes if a['urgence'] == 'HAUTE']),
+        'moyennes': len([a for a in alertes if a['urgence'] == 'MOYENNE']),
+        'basses': len([a for a in alertes if a['urgence'] == 'BASSE']),
+        'par_type': {
+            'stock_bas': len([a for a in alertes if a['type'] == 'stock_bas']),
+            'expiration': 0, # Pas encore implémenté en base
+            'gros_mouvement': 0, # Pas encore implémenté en base
+        },
+        'traitees': nb_traitees,
+        'non_traitees': len(alertes)
+    }
+    
+    return stats
 
 # ============================================================================
 # FONCTIONS STATISTIQUES
@@ -775,14 +866,36 @@ def delete_mouvement(mouvement_id):
     
 def delete_produit(produit_id):
     """
-    Supprime un produit de la base.
+    Supprime un produit et son image associée du système de fichiers
     """
     try:
+        # 1. Récupérer les informations du produit avant suppression
+        produit = get_produit_by_id(produit_id)
+        if not produit:
+            logger.warning(f"Produit {produit_id} non trouvé")
+            return False
+        
+        # 2. Supprimer le fichier image s'il existe
+        if produit.get('image_url'):
+            image_path = BASE_DIR / produit['image_url']
+            if image_path.exists():
+                try:
+                    os.remove(image_path)
+                    logger.info(f"Image supprimée: {image_path}")
+                except Exception as img_error:
+                    logger.warning(f"Impossible de supprimer l'image {image_path}: {img_error}")
+        
+        # 3. Supprimer les mouvements associés
+        execute_query("DELETE FROM mouvements WHERE produit_id = ?", (produit_id,))
+        
+        # 4. Supprimer le produit de la base de données
         execute_query("DELETE FROM produits WHERE id = ?", (produit_id,))
+        
+        logger.info(f"Produit {produit_id} ({produit['nom']}) supprimé avec succès")
         return True
+        
     except Exception as e:
-        import logging
-        logging.error(f"Erreur suppression produit {produit_id}: {e}")
+        logger.error(f"Erreur suppression produit {produit_id}: {e}")
         return False
 
 def export_to_excel(filename=None):
@@ -815,3 +928,116 @@ def export_to_excel(filename=None):
     
     logger.info(f"✅ Export Excel créé: {filename}")
     return filename
+
+def get_alertes_mouvements_data(jours=7, limit=50):
+    """Récupère les mouvements importants récents pour les alertes"""
+    return fetch_all("""
+        SELECT m.*, p.nom as produit_nom
+        FROM mouvements m
+        JOIN produits p ON m.produit_id = p.id
+        WHERE m.date_mouvement > DATE('now', ?)
+        AND (m.quantite > 100 OR m.type = 'sortie')
+        ORDER BY m.date_mouvement DESC
+        LIMIT ?
+    """, (f'-{jours} days', limit))
+
+def get_produits_risque_imminent(limit=5):
+    """Récupère les produits dont le stock est proche du seuil minimum"""
+    return fetch_all("""
+        SELECT nom, quantite, seuil_min 
+        FROM produits 
+        WHERE quantite <= seuil_min * 1.5
+        ORDER BY (CAST(quantite AS FLOAT) / CAST(seuil_min AS FLOAT)) ASC
+        LIMIT ?
+    """, (limit,))
+
+def get_alertes_stats():
+    """Récupère les statistiques d'alertes simplifiées"""
+    produits = fetch_all("""
+        SELECT quantite, seuil_min FROM produits 
+        WHERE quantite <= seuil_min
+    """)
+    
+    ruptures = 0
+    critiques = 0
+    alertes = 0
+    
+    for p in produits:
+        qte = p['quantite']
+        seuil = p['seuil_min']
+        if qte == 0:
+            ruptures += 1
+        elif qte <= seuil * 0.5:
+            critiques += 1
+        else:
+            alertes += 1
+            
+    return {
+        'ruptures': ruptures,
+        'critiques': critiques,
+        'alertes': alertes,
+        'total': ruptures + critiques + alertes
+    }
+
+def get_all_users():
+    """Récupère tous les utilisateurs de la base"""
+    return fetch_all("""
+        SELECT 
+            id, username, email, full_name, role, 
+            permissions, created_at, last_login, is_active
+        FROM users
+        ORDER BY created_at DESC
+    """)
+
+def update_user_field(user_id, field, value):
+    """Met à jour un champ spécifique d'un utilisateur"""
+    # Liste blanche des champs autorisés pour la sécurité
+    allowed_fields = ['is_active', 'role', 'permissions', 'password_hash']
+    if field not in allowed_fields:
+        raise ValueError(f"Champ '{field}' non autorisé pour la mise à jour")
+        
+    return execute_query(
+        f"UPDATE users SET {field} = ? WHERE id = ?",
+        (value, user_id)
+    )
+
+def delete_user(user_id):
+    """Supprime un utilisateur de la base"""
+    return execute_query("DELETE FROM users WHERE id = ?", (user_id,))
+
+def get_user_metrics():
+    """Récupère les statistiques des utilisateurs"""
+    total = fetch_all("SELECT COUNT(*) as count FROM users")[0]['count']
+    actifs = fetch_all("SELECT COUNT(*) as count FROM users WHERE is_active = 1")[0]['count']
+    admins = fetch_all("SELECT COUNT(*) as count FROM users WHERE role = 'admin'")[0]['count']
+    connectes = fetch_all("SELECT COUNT(*) as count FROM users WHERE last_login IS NOT NULL")[0]['count']
+    
+    return {
+        'total': total,
+        'actifs': actifs,
+        'admins': admins,
+        'connectes': connectes
+    }
+
+def get_login_activity_data(days=7):
+    """Récupère les activités de connexion agrégées par date"""
+    return fetch_all("""
+        SELECT 
+            DATE(timestamp) as date,
+            COUNT(*) as tentatives,
+            SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as succes
+        FROM login_attempts
+        WHERE timestamp >= date('now', ?)
+        GROUP BY DATE(timestamp)
+        ORDER BY date
+    """, (f'-{days} days',))
+
+def get_recent_successful_logins(limit=10):
+    """Récupère les dernières connexions réussies"""
+    return fetch_all("""
+        SELECT username, timestamp
+        FROM login_attempts
+        WHERE success = 1
+        ORDER BY timestamp DESC
+        LIMIT ?
+    """, (limit,))

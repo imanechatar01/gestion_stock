@@ -1,131 +1,434 @@
 # app/pages/_Produits.py
 import streamlit as st
 from models import database
+import os
+from pathlib import Path
+import base64
+import shutil
+
+# Chemin de stockage des images
+BASE_DIR = Path(__file__).parent.parent
+IMG_DIR = BASE_DIR / "static" / "img" / "products"
+IMG_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_image_base64(image_path):
+    """Convertit une image en base64 pour l'affichage HTML"""
+    if not image_path:
+        return None
+    
+    full_path = BASE_DIR / image_path
+    if not full_path.exists():
+        return None
+        
+    try:
+        with open(full_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode('utf-8')
+    except Exception:
+        return None
+
+def save_uploaded_image(uploaded_file, product_ref):
+    """Sauvegarde l'image uploadée"""
+    if uploaded_file is None:
+        return None
+        
+    # Extension du fichier
+    file_ext = os.path.splitext(uploaded_file.name)[1]
+    filename = f"{product_ref}{file_ext}"
+    
+    # Chemin relatif pour la DB
+    db_path = f"static/img/products/{filename}"
+    
+    # Chemin absolu pour la sauvegarde
+    save_path = IMG_DIR / filename
+    
+    with open(save_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+        
+    return db_path
 
 # =======================
-# CSS personnalisé
+# CSS personnalisé & Système de Design
 # =======================
 def show():
+    # CSS Premium pour la gestion des produits
     st.markdown("""
     <style>
-    /* Remove default Streamlit top padding */
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 0rem !important;
+    /* Main Layout */
+    .product-header-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #E2E8F0;
     }
     
-    .produit-card {
-        background-color: #F8FAFC;
+    /* Search & Filter Bar */
+    .control-bar {
+        background: white;
         padding: 15px;
         border-radius: 12px;
-        margin-bottom: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        border: 1px solid #E2E8F0;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        min-height: 200px;
-        transition: transform 0.2s;
-    }
-    .produit-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-
-    .produit-card h5 {
-        margin: 0 0 5px 0;
-        color: #1E40AF;
-        font-weight: 600;
-    }
-
-    .produit-card p {
-        margin: 4px 0;
-        font-size: 14px;
-        color: #475569;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        margin-bottom: 25px;
+        border: 1px solid #F1F5F9;
     }
     
-    .price-tag {
-        font-weight: bold;
-        color: #059669;
-        font-size: 1.1em;
+    /* Product Card Styling */
+    .card-container {
+        perspective: 1000px;
+    }
+    
+    .produit-card-premium {
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid #F1F5F9;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .produit-card-premium:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+        border-color: #E2E8F0;
+    }
+    
+    /* Image Container - Slightly larger for 3-column layout */
+    .img-wrapper {
+        width: 100%;
+        height: 180px;
+        background: #F8FAFC;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 5px;
+        border-bottom: 1px solid #F1F5F9;
+    }
+    
+    /* Badges */
+    .badge-cat {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 9px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: white;
+        z-index: 2;
+    }
+    
+    .badge-stock {
+        position: absolute;
+        bottom: 8px;
+        left: 8px;
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 600;
+        background: white;
+        border: 1px solid #E2E8F0;
+        z-index: 3;
+    }
+    
+    /* Stock Colors */
+    .stock-sain { color: #10B981; }
+    .stock-faible { color: #F59E0B; }
+    .stock-critique { color: #EF4444; }
+    
+    /* Content - Centered */
+    .card-content {
+        padding: 15px 10px;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        background: white;
+    }
+    
+    /* Custom Streamlit Button Styling (Direct injection) */
+    div.stButton > button[kind="primary"] {
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    div.stButton > button[kind="primary"]:hover {
+        background-color: #1D4ED8 !important;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
+        transform: translateY(-1px);
+    }
+    
+    .card-title {
+        color: #4338CA; /* Deep Indigo */
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 4px;
+        line-height: 1.2;
+    }
+    
+    .card-ref {
+        color: #94A3B8;
+        font-size: 10px;
+        font-weight: 500;
+        margin-bottom: 10px;
+    }
+    
+    .card-footer {
+        margin-top: auto;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 10px;
+        border-top: 1px solid #F8FAFC;
+    }
+    
+    .card-price {
+        color: #1E293B;
+        font-size: 18px;
+        font-weight: 800;
+    }
+    
+    .price-unit {
+        font-size: 11px;
+        color: #64748B;
+        margin-left: 2px;
     }
 
-    .produit-header {
-        color: #1E40AF;
-        font-size: 26px;
-        font-weight: bold;
-        margin-bottom: 20px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #E2E8F0;
-    }
     </style>
     """, unsafe_allow_html=True)
 
-    # =======================
-    # Session State
-    # =======================
-    if 'refresh' not in st.session_state:
-        st.session_state['refresh'] = False
+    # Session State for editing
+    if 'editing_product' not in st.session_state:
+        st.session_state.editing_product = None
+    if 'success_msg' not in st.session_state:
+        st.session_state.success_msg = None
 
-    st.title("")
-
-    # =======================
-    # Onglets
-    # =======================
-    tab1, tab2 = st.tabs(["📋 Liste des Produits", "➕ Ajouter un Produit"])
+    # Tabs (Stable)
+    tab1, tab2 = st.tabs(["Catalogue Produits", "Nouvel Article"])
 
     # =======================
-    # TAB 1: LISTE (CARDS)
+    # TAB 1: LISTE (CARDS MODERNE)
     # =======================
     with tab1:
-        search_term = st.text_input("🔍 Rechercher un produit par nom ou référence:", placeholder="Ex: Clavier, PROD-001...")
+        # Affichage du message de succès si présent
+        if st.session_state.success_msg:
+            st.success(st.session_state.success_msg)
+            st.session_state.success_msg = None
 
-        try:
-            produits = database.get_all_produits()
-            if search_term:
-                term = search_term.lower()
-                produits = [
-                    p for p in produits
-                    if term in p['nom'].lower() or term in p['reference'].lower()
-                ]
+        if st.session_state.editing_product:
+            # =======================
+            # SOUS-VUE : MODIFICATION
+            # =======================
+            p = st.session_state.editing_product
             
-            st.markdown("<div class='produit-header'>Catalogue</div>", unsafe_allow_html=True)
+            col_back, col_title = st.columns([1, 4])
+            with col_back:
+                if st.button("← Retour", use_container_width=True):
+                    st.session_state.editing_product = None
+                    st.rerun()
+            with col_title:
+                st.subheader(f"Modification : {p.get('nom', 'Produit sans nom')}")
+            
+            with st.form("edit_produit_form"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    edit_ref = st.text_input("Référence *", value=p.get('reference', ''))
+                    edit_nom = st.text_input("Nom *", value=p.get('nom', ''))
+                    
+                    # Charger catégories
+                    cats = database.get_all_categories()
+                    if cats:
+                        cats_dict = {c['id']: c['nom'] for c in cats}
+                        cur_cat = p.get('categorie_id')
+                        cat_index = list(cats_dict.keys()).index(cur_cat) if cur_cat in cats_dict else 0
+                        edit_cat_id = st.selectbox("Catégorie *", options=list(cats_dict.keys()), index=cat_index, format_func=lambda x: cats_dict[x])
+                    else:
+                        st.warning("Aucune catégorie disponible.")
+                        edit_cat_id = None
 
-            if produits:
-                cols_per_row = 3
-                for i in range(0, len(produits), cols_per_row):
-                    cols = st.columns(cols_per_row)
-                    for j, p in enumerate(produits[i:i+cols_per_row]):
-                        with cols[j]:
-                            # Carte Produit
-                            st.markdown(f"""
-                            <div class='produit-card' style='border-left: 5px solid {p['categorie_couleur'] or '#ccc'};'>
-                                <div>
-                                    <h5>{p['nom']}<small style="color:#64748B;"> ({p['reference']})</small></h5>
-                                    <p><b>Catégorie:</b> <span style='color: {p['categorie_couleur'] or '#333'}; font-weight: bold;'>{p['categorie_nom'] or '—'}</span></p>
-                                    <p><b>Fournisseur:</b> {p['fournisseur_nom'] or '—'}</p>
-                                    <p><b>Stock:</b> {p['quantite']} unités</p>
-                                    <p class="price-tag">{p['prix_vente']} DH</p>
-                                    <p style="font-style: italic; font-size: 12px; margin-top: 5px;">{p['description'] or ''}</p>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                with col2:
+                    # Charger fournisseurs
+                    fours = database.get_all_fournisseurs()
+                    fours_dict = {f['id']: f['nom'] for f in fours}
+                    four_keys = [None] + list(fours_dict.keys())
+                    cur_four = p.get('fournisseur_id')
+                    four_index = four_keys.index(cur_four) if cur_four in four_keys else 0
+                    edit_four_id = st.selectbox("Fournisseur", options=four_keys, index=four_index, format_func=lambda x: fours_dict[x] if x else "Aucun")
+                    
+                    try:
+                        val_seuil = int(p.get('seuil_min', 5))
+                    except:
+                        val_seuil = 5
+                    edit_seuil = st.number_input("Seuil d'alerte", min_value=0, value=val_seuil)
 
-                            # Bouton Supprimer
-                            if st.button(f"🗑️ Supprimer", key=f"del_{p['id']}", help=f"Supprimer définitivement {p['nom']}"):
-                                if database.delete_produit(p['id']):
-                                    st.toast(f"Produit '{p['nom']}' supprimé avec succès !", icon="✅")
-                                    st.rerun()
-                                else:
-                                    st.error("Erreur lors de la suppression.")
-            else:
+                col3, col4 = st.columns(2)
+                with col3:
+                    try:
+                        val_achat = float(p.get('prix_achat', 0.0))
+                    except:
+                        val_achat = 0.0
+                    edit_prix_achat = st.number_input("Prix d'achat (DH)", min_value=0.0, value=val_achat, step=1.0)
+                with col4:
+                    try:
+                        val_vente = float(p.get('prix_vente', 0.0))
+                    except:
+                        val_vente = 0.0
+                    edit_prix_vente = st.number_input("Prix de vente (DH)", min_value=0.0, value=val_vente, step=1.0)
+                
+                edit_desc = st.text_area("Description", value=p.get('description', '') or "", height=80)
+                
+                # Image actuelle
+                if p.get('image_url'):
+                    full_img_path = BASE_DIR / p['image_url']
+                    if full_img_path.exists():
+                        st.image(str(full_img_path), width=100, caption="Image actuelle")
+                
+                edit_image = st.file_uploader("Changer l'image (optionnel)", type=['png', 'jpg', 'jpeg'])
+                
+                submit_edit = st.form_submit_button("Enregistrer les modifications", use_container_width=True, type="primary")
+
+                if submit_edit:
+                    if not edit_ref or not edit_nom or not edit_cat_id:
+                        st.error("Veuillez remplir les champs obligatoires (*).")
+                    else:
+                        try:
+                            # Gestion de l'image
+                            image_path = p.get('image_url')
+                            if edit_image:
+                                image_path = save_uploaded_image(edit_image, edit_ref)
+
+                            update_data = {
+                                "reference": edit_ref,
+                                "nom": edit_nom,
+                                "description": edit_desc,
+                                "categorie_id": edit_cat_id,
+                                "fournisseur_id": edit_four_id,
+                                "seuil_min": edit_seuil,
+                                "prix_achat": edit_prix_achat,
+                                "prix_vente": edit_prix_vente,
+                                "image_url": image_path
+                            }
+
+                            if database.update_produit(p['id'], update_data):
+                                st.session_state.success_msg = f"Produit '{edit_nom}' mis à jour avec succès !"
+                                st.session_state.editing_product = None
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Erreur technique : {e}")
+        
+        else:
+            # =======================
+            # VUE : CATALOGUE (LISTE)
+            # =======================
+            # Zone de recherche et filtres
+            st.markdown("<div class='control-bar'>", unsafe_allow_html=True)
+            fc1, fc2, fc3 = st.columns([2, 1, 1])
+            
+            with fc1:
+                search_term = st.text_input("Recherche rapide", placeholder="Nom ou référence du produit...")
+            
+            with fc2:
+                all_cats = database.get_all_categories()
+                cat_options = ["Toutes les catégories"] + [c['nom'] for c in all_cats]
+                selected_cat = st.selectbox("Catégorie", options=cat_options)
+                
+            with fc3:
+                sort_options = ["Alphabétique", "Stock croissant", "Stock décroissant", "Prix croissant", "Prix décroissant"]
+                sort_by = st.selectbox("Trier par", options=sort_options)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            try:
+                produits = database.get_all_produits()
+                
+                # FILTRAGE
                 if search_term:
-                    st.info("Aucun produit ne correspond à votre recherche.")
-                else:
-                    st.info("Aucun produit dans la base de données. Commencez par en ajouter un !")
+                    term = search_term.lower()
+                    produits = [p for p in produits if term in p['nom'].lower() or term in p['reference'].lower()]
+                
+                if selected_cat != "Toutes les catégories":
+                    produits = [p for p in produits if p['categorie_nom'] == selected_cat]
+                    
+                # TRI
+                if sort_by == "Alphabétique":
+                    produits = sorted(produits, key=lambda x: x['nom'].lower())
+                elif sort_by == "Stock croissant":
+                    produits = sorted(produits, key=lambda x: x['quantite'])
+                elif sort_by == "Stock décroissant":
+                    produits = sorted(produits, key=lambda x: x['quantite'], reverse=True)
+                elif sort_by == "Prix croissant":
+                    produits = sorted(produits, key=lambda x: x['prix_vente'])
+                elif sort_by == "Prix décroissant":
+                    produits = sorted(produits, key=lambda x: x['prix_vente'], reverse=True)
 
-        except Exception as e:
-            st.error(f"Erreur lors du chargement des produits: {e}")
+                if produits:
+                    cols_per_row = 3
+                    for i in range(0, len(produits), cols_per_row):
+                        rows = st.columns(cols_per_row, gap="medium")
+                        for j, p in enumerate(produits[i:i+cols_per_row]):
+                            with rows[j]:
+                                # Préparation des badges de stock
+                                stock_status = "stock-sain"
+                                stock_label = "En Stock"
+                                if p['quantite'] <= 0:
+                                    stock_status = "stock-critique"
+                                    stock_label = "Rupture"
+                                elif p['quantite'] <= p['seuil_min']:
+                                    stock_status = "stock-faible"
+                                    stock_label = "Faible"
+                                
+                                # Rendu de la carte
+                                img_base64 = get_image_base64(p.get('image_url'))
+                                img_content = f'<img src="data:image/png;base64,{img_base64}" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;">' if img_base64 else f'<span style="font-size: 60px; opacity: 0.1; color:{p["categorie_couleur"]}">P</span>'
+                                
+                                st.markdown(f"""
+                                <div class="produit-card-premium">
+                                    <div class="img-wrapper">
+                                        <div class="badge-cat" style="background: {p['categorie_couleur'] or '#3B82F6'}">{p['categorie_nom'] or 'Général'}</div>
+                                        {img_content}
+                                        <div class="badge-stock {stock_status}">
+                                            {stock_label}: {p['quantite']}
+                                        </div>
+                                    </div>
+                                    <div class="card-content">
+                                        <div class="card-title">{p['nom']}</div>
+                                        <div class="card-ref">{p['reference']}</div>
+                                        <div class="card-footer">
+                                            <div class="card-price">{p['prix_vente']}<span class="price-unit">DH</span></div>
+                                            <div style="font-size: 10px; color: #94A3B8; font-weight: 500;">{p['fournisseur_nom'] or '—'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                # Boutons d'action
+                                btn_col1, btn_col2 = st.columns(2, gap="small")
+                                with btn_col1:
+                                    if st.button("Modifier", key=f"edit_{p['id']}", use_container_width=True):
+                                        st.session_state.editing_product = p
+                                        st.rerun()
+                                with btn_col2:
+                                    if st.button("Supprimer", key=f"del_{p['id']}", help="Supprimer définitivement", use_container_width=True, type="primary"):
+                                        if database.delete_produit(p['id']):
+                                            st.toast(f"{p['nom']} retiré !")
+                                            if st.session_state.editing_product and st.session_state.editing_product['id'] == p['id']:
+                                                st.session_state.editing_product = None
+                                            st.rerun()
+                else:
+                    st.info("Aucun produit ne correspond aux critères.")
+
+            except Exception as e:
+                st.error(f"Erreur d'affichage : {e}")
 
     # =======================
     # TAB 2: AJOUT
@@ -145,7 +448,7 @@ def show():
                     cats_dict = {c['id']: c['nom'] for c in cats}
                     categorie_id = st.selectbox("Catégorie *", options=list(cats_dict.keys()), format_func=lambda x: cats_dict[x])
                 else:
-                    st.warning("Aucune catégorie disponible. Veuillez en créer une dans Paramètres.")
+                    st.warning("Aucune catégorie disponible. Veuillez en créer une dans Catégorie.")
                     categorie_id = None
 
             with col2:
@@ -167,14 +470,20 @@ def show():
                 prix_vente = st.number_input("Prix de vente (DH)", min_value=0.0, step=1.0)
             
             description = st.text_area("Description", height=80)
+            uploaded_image = st.file_uploader("Image du produit", type=['png', 'jpg', 'jpeg'])
             
-            submitted = st.form_submit_button("💾 Enregistrer le produit", use_container_width=True)
+            submitted = st.form_submit_button("Enregistrer le produit", use_container_width=True)
 
             if submitted:
                 if not reference or not nom or not categorie_id:
                     st.error("Veuillez remplir les champs obligatoires (*).")
                 else:
                     try:
+                        # Sauvegarde de l'image
+                        image_path = None
+                        if uploaded_image:
+                            image_path = save_uploaded_image(uploaded_image, reference)
+
                         database.add_produit({
                             "reference": reference,
                             "nom": nom,
@@ -184,10 +493,13 @@ def show():
                             "quantite": quantite,
                             "seuil_min": seuil_min,
                             "prix_achat": prix_achat,
-                            "prix_vente": prix_vente
+                            "prix_vente": prix_vente,
+                            "image_url": image_path
                         })
-                        st.toast(f"Produit '{nom}' ajouté avec succès !", icon="✅")
+                        st.toast(f"Produit '{nom}' ajouté avec succès !")
                     except ValueError as ve:
                         st.warning(str(ve))
                     except Exception as e:
                         st.error(f"Erreur technique : {e}")
+
+

@@ -23,6 +23,14 @@ def update_database_structure():
             print("✅ Colonne ajoutée")
         except Exception as e:
             print(f"⚠️ Impossible d'ajouter la colonne: {e}")
+
+    if 'image_url' not in colonnes_produits:
+        print("➕ Ajout de 'image_url' à la table produits...")
+        try:
+            cursor.execute("ALTER TABLE produits ADD COLUMN image_url TEXT")
+            print("✅ Colonne image_url ajoutée")
+        except Exception as e:
+            print(f"⚠️ Impossible d'ajouter la colonne image_url: {e}")
     
     # 2. Vérifier la structure de la table mouvements
     cursor.execute("PRAGMA table_info(mouvements)")

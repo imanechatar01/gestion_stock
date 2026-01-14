@@ -76,7 +76,7 @@ def show():
     # =======================
     # Formulaire Ajouter Produit
     # =======================
-    with st.expander("➕ Ajouter un produit"):
+    with st.expander("Ajouter un produit"):
         with st.form("ajout_produit"):
             col1, col2 = st.columns(2)
             with col1:
@@ -122,7 +122,7 @@ def show():
     # =======================
     # Barre de recherche
     # =======================
-    search_term = st.text_input("🔍 Rechercher un produit par nom ou référence:")
+    search_term = st.text_input("Rechercher un produit par nom ou référence:")
 
     # =======================
     # Liste des produits

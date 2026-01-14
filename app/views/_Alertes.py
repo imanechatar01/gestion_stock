@@ -8,169 +8,70 @@ import time
 
 def show():
     """
-    Page de gestion des alertes pour les produits - Version Premium
+    Page de gestion des alertes et notifications
     """
     
-    # CSS Personnalisé pour un look Premium
+    # Titre avec indicateur en temps réel
     st.markdown("""
-        <style>
-        .main-header {
-          padding: 2rem;
-            border-radius: 20px;
-            color: white;
-            margin-bottom: 2rem;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        }
-        .stats-container {
-            display: flex;
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        .stat-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 1.5rem;
-            border-radius: 15px;
-            flex: 1;
-            text-align: center;
-        }
-        .alert-card {
-            background: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            border-left: 8px solid #ddd;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            transition: transform 0.2s, box-shadow 0.2s;
-            height: 100%;
-        }
-        .alert-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
-        }
-        .status-badge {
-            padding: 0.5rem 1rem;
-            border-radius: 30px;
-            font-weight: 700;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-        }
-        .status-rupture { background: #fee2e2; color: #dc2626; border-left-color: #dc2626; }
-        .status-critique { background: #ffedd5; color: #f97316; border-left-color: #f97316; }
-        .status-alerte { background: #fef3c7; color: #d97706; border-left-color: #d97706; }
-        
-        .product-info h4 { margin: 0; color: #1f2937; }
-        .product-info p { margin: 4px 0 0 0; color: #6b7280; font-size: 0.9rem; }
-        
-        .stock-tag {
-            background: #f3f4f6;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            color: #4b5563;
-        }
-        </style>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
+        <div>
+            <h1 style="margin: 0;">⚠️ Gestion des Alertes</h1>
+            <p style="color: #666; margin: 5px 0 0 0;">Surveillance intelligente du stock en temps réel</p>
+        </div>
+        <div id="alert-badge" style="background: #ef4444; color: white; padding: 10px 20px; border-radius: 25px; font-weight: bold; font-size: 24px;">
+            <!-- Le badge sera mis à jour via JavaScript -->
+            0
+        </div>
+    </div>
     """, unsafe_allow_html=True)
     
-    # Header Premium
+    # JavaScript pour actualiser le badge
     st.markdown("""
-       
+    <script>
+    function updateAlertBadge() {
+        fetch('/reload?force=true')
+            .then(() => {
+                // Simuler un compteur pour la démo
+                const badge = document.getElementById('alert-badge');
+                const current = parseInt(badge.textContent);
+                if (current < 5) {
+                    badge.textContent = current + 1;
+                    badge.style.background = current >= 3 ? '#ef4444' : '#f59e0b';
+                }
+            });
+    }
+    // Mettre à jour toutes les 30 secondes
+    setInterval(updateAlertBadge, 30000);
+    </script>
     """, unsafe_allow_html=True)
     
-    try:
-        produits_alerte = database.get_produits_en_alerte()
-        
-        if not produits_alerte:
-            st.success("Tous les stocks sont optimaux !")
-            st.balloons()
-            return
-
-        # Récupération des statistiques depuis la base
-        stats_data = database.get_alertes_stats()
-        ruptures = stats_data['ruptures']
-        critiques = stats_data['critiques']
-        alertes = stats_data['alertes']
-
-        # Affichage des métriques stylisées
-        m1, m2, m3 = st.columns(3)
-        with m1:
-            st.markdown(f"""
-<div class="stat-card" style="border-top: 4px solid #dc2626;">
-<h3 style="margin:0; color:#dc2626;">{ruptures}</h3>
-<p style="margin:0; font-size:0.8rem; opacity:0.7;">Ruptures</p>
-</div>
-""", unsafe_allow_html=True)
-        with m2:
-            st.markdown(f"""
-<div class="stat-card" style="border-top: 4px solid #f97316;">
-<h3 style="margin:0; color:#f97316;">{critiques}</h3>
-<p style="margin:0; font-size:0.8rem; opacity:0.7;">Critiques</p>
-</div>
-""", unsafe_allow_html=True)
-        with m3:
-            st.markdown(f"""
-<div class="stat-card" style="border-top: 4px solid #d97706;">
-<h3 style="margin:0; color:#d97706;">{alertes}</h3>
-<p style="margin:0; font-size:0.8rem; opacity:0.7;">Alertes</p>
-</div>
-""", unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # Liste des produits en grille
-        cols_per_row = 2
-        for i in range(0, len(produits_alerte), cols_per_row):
-            cols = st.columns(cols_per_row)
-            for j, produit in enumerate(produits_alerte[i:i+cols_per_row]):
-                with cols[j]:
-                    stock_actuel = produit.get('quantite', 0)
-                    seuil_min = produit.get('seuil_min', 0)
-                    prix = produit.get('prix_vente', 0)
-                    
-                    # Détermination du statut
-                    if stock_actuel == 0:
-                        cls = "status-rupture"
-                        status_label = "Rupture"
-                        color = "#dc2626"
-                    elif stock_actuel <= seuil_min * 0.5:
-                        cls = "status-critique"
-                        status_label = "Critique"
-                        color = "#f97316"
-                    else:
-                        cls = "status-alerte"
-                        status_label = "Alerte"
-                        color = "#d97706"
-
-                    # Rendu de la carte sans bouton (Nettoyage complet de l'indentation pour éviter le bloc code)
-                    st.markdown(f"""
-<div class="alert-card" style="border-left-color: {color};">
-<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
-<div class="product-info">
-<h4 style="margin:0; font-size: 1.2rem;">{produit['nom']}</h4>
-<p style="margin:2px 0; color: #6b7280;">{produit.get('categorie_nom', 'Sans catégorie')}</p>
-<p style="margin:2px 0; font-size: 0.8rem; color: #9ca3af;">REF: {produit.get('reference', 'N/A')}</p>
-</div>
-<span class="status-badge {cls}" style="font-size: 0.7rem; padding: 0.3rem 0.6rem;">{status_label}</span>
-</div>
-<div style="margin: 1rem 0; display: flex; flex-wrap: wrap; gap: 8px;">
-<span class="stock-tag">Prix: {prix:.2f} DH</span>
-<span class="stock-tag">Valeur: {(stock_actuel * prix):.2f} DH</span>
-</div>
-<div style="display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #f3f4f6; padding-top: 0.8rem;">
-<div style="font-size: 0.8rem; color: #6b7280;">Stock disponible</div>
-<div style="text-align: right;">
-<div style="font-weight: bold; font-size: 1.4rem; color: #374151;">{stock_actuel} <span style="font-size: 0.8rem; font-weight: normal; color: #9ca3af;">unités</span></div>
-<div style="font-size: 0.75rem; color: #9ca3af;">Seuil min: {seuil_min}</div>
-</div>
-</div>
-</div>
-""", unsafe_allow_html=True)
-
-    except Exception as e:
-        st.error(f"Erreur de rendu: {e}")
-        import traceback
-        st.code(traceback.format_exc())
+    # Initialisation de la session state pour les alertes traitées
+    if 'alertes_traitees' not in st.session_state:
+        st.session_state.alertes_traitees = set()
+    
+    # Onglets principaux
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📊 Tableau de Bord",
+        "📋 Alertes Actives", 
+        "📈 Historique",
+        "⚙️ Configuration"
+    ])
+    
+    # TAB 1: Tableau de bord des alertes
+    with tab1:
+        display_tableau_de_bord()
+    
+    # TAB 2: Alertes actives
+    with tab2:
+        display_alertes_actives()
+    
+    # TAB 3: Historique
+    with tab3:
+        display_historique_alertes()
+    
+    # TAB 4: Configuration
+    with tab4:
+        display_configuration_alertes()
 
 # Remplacer get_alertes_stock() par :
 def get_alertes_stock():
@@ -232,8 +133,15 @@ def get_alertes_date_expiration():
 def get_alertes_mouvements():
     """Simule les alertes de mouvements inhabituels"""
     try:
-        # Récupérer les mouvements récents via la fonction dédiée
-        mouvements = database.get_alertes_mouvements_data(jours=7, limit=50) or []
+        # Récupérer les mouvements récents
+        mouvements = database.fetch_all("""
+            SELECT m.*, p.nom as produit_nom
+            FROM mouvements m
+            JOIN produits p ON m.produit_id = p.id
+            WHERE m.date_mouvement > DATE('now', '-7 days')
+            ORDER BY m.date_mouvement DESC
+            LIMIT 50
+        """) or []
         
         alertes = []
         
@@ -258,42 +166,13 @@ def get_alertes_mouvements():
         st.error(f"Erreur détection mouvements: {e}")
         return []
 
-def get_alertes_predictives():
-    """Génère des alertes basées sur les prédictions de rupture"""
-    from models.analytics import AnalyticsEngine
-    analytics = AnalyticsEngine()
-    
-    df_pred = analytics.get_global_analytics()
-    alertes = []
-    
-    if not df_pred.empty:
-        # Filtrer ceux qui vont être en rupture bientôt (ex: < 7 jours)
-        danger_zone = df_pred[df_pred['jours_restants'] <= 7]
-        
-        for _, row in danger_zone.iterrows():
-            alertes.append({
-                'id': f"PRED-{row['produit'][:3].upper()}-{int(row['stock_actuel'])}", # Pseudo ID unique
-                'type': 'stock_bas', # On réutilise le type stock_bas pour l'icône, ou on en crée un nouveau
-                'titre': f"Rupture imminente : {row['produit']}",
-                'description': f"Stock épuisé dans {row['jours_restants']:.1f} jour(s) au rythme actuel ({row['conso_journaliere']} u/j)",
-                'urgence': 'HAUTE' if row['jours_restants'] < 3 else 'MOYENNE',
-                'date_detection': datetime.now().isoformat(),
-                'produit_nom': row['produit'],
-                'categorie': 'Prédiction',
-                'statut': 'active',
-                'action_requise': 'Commander maintenant'
-            })
-            
-    return alertes
-
 def get_toutes_alertes():
     """Combine toutes les alertes"""
     alertes_stock = get_alertes_stock()
-    # alertes_expiration = get_alertes_date_expiration() # Désactivé car simulé
+    alertes_expiration = get_alertes_date_expiration()
     alertes_mouvements = get_alertes_mouvements()
-    # alertes_predictives = get_alertes_predictives()
     
-    toutes_alertes = alertes_stock + alertes_mouvements
+    toutes_alertes = alertes_stock + alertes_expiration + alertes_mouvements
     
     # Filtrer les alertes déjà traitées
     alertes_non_traitees = [
@@ -368,7 +247,7 @@ def display_tableau_de_bord():
     col_chart1, col_chart2 = st.columns(2)
     
     with col_chart1:
-        st.markdown("#### Répartition par urgence")
+        st.markdown("#### 📊 Répartition par urgence")
         
         # Données pour le graphique
         data_urgence = {
@@ -397,7 +276,7 @@ def display_tableau_de_bord():
         st.plotly_chart(fig, use_container_width=True)
     
     with col_chart2:
-        st.markdown("#### Répartition par type")
+        st.markdown("#### 📈 Répartition par type")
         
         data_type = pd.DataFrame([
             {'Type': 'Stock Bas', 'Nombre': stats['par_type']['stock_bas']},
@@ -422,7 +301,7 @@ def display_tableau_de_bord():
     
     # Alertes récentes
     st.markdown("---")
-    st.markdown("#### Alertes récentes")
+    st.markdown("#### 🚨 Alertes récentes")
     
     alertes = get_toutes_alertes()
     if alertes:
@@ -436,26 +315,32 @@ def display_tableau_de_bord():
         for alerte in alertes_triees:
             display_carte_alerte(alerte, compact=True)
     else:
-        st.success("Aucune alerte active pour le moment !")
+        st.success("🎉 Aucune alerte active pour le moment !")
     
     # Section de prévision
     st.markdown("---")
-    with st.expander("Prévisions et recommandations"):
+    with st.expander("🔮 Prévisions et recommandations"):
         st.info("Analyse prédictive basée sur les données historiques")
         
         col_rec1, col_rec2 = st.columns(2)
         
         with col_rec1:
-            st.markdown("##### Produits à surveiller")
+            st.markdown("##### 📦 Produits à surveiller")
             
             try:
-                produits_faible_stock = database.get_produits_risque_imminent(limit=5) or []
+                produits_faible_stock = database.fetch_all("""
+                    SELECT nom, quantite, seuil_min 
+                    FROM produits 
+                    WHERE quantite <= seuil_min * 1.5
+                    ORDER BY quantite/seuil_min
+                    LIMIT 5
+                """) or []
                 
                 if produits_faible_stock:
                     for prod in produits_faible_stock:
                         ratio = prod['quantite'] / prod['seuil_min'] if prod['seuil_min'] > 0 else 0
                         st.progress(
-                            min(max(ratio, 0.0), 1.0),
+                            min(ratio, 1.0),
                             text=f"{prod['nom']}: {prod['quantite']}/{prod['seuil_min']}"
                         )
                 else:
@@ -465,14 +350,14 @@ def display_tableau_de_bord():
                 st.error(f"Erreur: {e}")
         
         with col_rec2:
-            st.markdown("##### Analyses Visuelles")
+            st.markdown("##### 📊 Tendances")
             
             # Simulation de tendances
             tendances = [
-                (" Augmentation des alertes stock", "+15% ce mois"),
-                (" Diminution alertes expiration", "-8% ce mois"),
-                ("Temps moyen de traitement", "2.3 jours"),
-                (" Taux de résolution", "87%")
+                ("📈 Augmentation des alertes stock", "+15% ce mois"),
+                ("📉 Diminution alertes expiration", "-8% ce mois"),
+                ("⏱️ Temps moyen de traitement", "2.3 jours"),
+                ("🎯 Taux de résolution", "87%")
             ]
             
             for tendance, valeur in tendances:
@@ -493,10 +378,10 @@ def display_carte_alerte(alerte, compact=False):
     
     # Icônes selon le type
     icons = {
-        'stock_bas': '',
-        'expiration': '',
-        'gros_mouvement': '',
-        'default': ''
+        'stock_bas': '📦',
+        'expiration': '⏰',
+        'gros_mouvement': '📊',
+        'default': '⚠️'
     }
     
     icon = icons.get(alerte['type'], icons['default'])
@@ -507,7 +392,7 @@ def display_carte_alerte(alerte, compact=False):
             col_icon, col_content, col_actions = st.columns([1, 5, 2])
             
             with col_icon:
-                st.write("") # Espace vide à la place de l'icône
+                st.markdown(f"<h2 style='margin: 0;'>{icon}</h2>", unsafe_allow_html=True)
             
             with col_content:
                 st.markdown(f"**{alerte['titre']}**")
@@ -515,7 +400,7 @@ def display_carte_alerte(alerte, compact=False):
                 st.markdown(f"<span style='background: {style['border']}20; color: {style['text']}; padding: 2px 8px; border-radius: 12px; font-size: 12px;'>{alerte['urgence']}</span>", unsafe_allow_html=True)
             
             with col_actions:
-                if st.button("Voir", key=f"view_{alerte['id']}", help="Voir détails"):
+                if st.button("👁️", key=f"view_{alerte['id']}", help="Voir détails"):
                     st.session_state[f"show_alert_{alerte['id']}"] = True
                 
                 if st.button("✓", key=f"resolve_{alerte['id']}", help="Marquer comme traité"):
@@ -526,52 +411,73 @@ def display_carte_alerte(alerte, compact=False):
     else:
         # Version détaillée
         with st.container():
-            # Card-like container with CSS
             st.markdown(f"""
-<div style="background: {style['bg']}; border: 2px solid {style['border']}; border-radius: 10px; padding: 15px; margin: 10px 0;">
-<div style="display: flex; justify-content: space-between; align-items: center;">
-<div style="display: flex; align-items: center; gap: 10px;">
-<div>
-<h3 style="margin: 0; color: {style['text']};">{alerte['titre']}</h3>
-<p style="margin: 5px 0; color: #666;">{alerte['description']}</p>
-</div>
-</div>
-<span style="background: {style['border']}; color: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 12px;">{alerte['urgence']}</span>
-</div>
-<div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
-<div style="font-size: 12px; color: #666;">
-<span>{alerte.get('categorie', 'Non catégorisé')}</span>
-<span style="margin-left: 15px;">{datetime.fromisoformat(alerte['date_detection']).strftime('%d/%m/%Y %H:%M')}</span>
-</div>
-<div>
-<span style="background: #3b82f6; color: white; padding: 5px 15px; border-radius: 5px; font-size: 12px;">Action requise: {alerte['action_requise']}</span>
-</div>
-</div>
-</div>
-""", unsafe_allow_html=True)
+            <div style="
+                background: {style['bg']};
+                border: 2px solid {style['border']};
+                border-radius: 10px;
+                padding: 15px;
+                margin: 10px 0;
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 24px;">{icon}</span>
+                        <div>
+                            <h3 style="margin: 0; color: {style['text']};">{alerte['titre']}</h3>
+                            <p style="margin: 5px 0; color: #666;">{alerte['description']}</p>
+                        </div>
+                    </div>
+                    <span style="
+                        background: {style['border']};
+                        color: white;
+                        padding: 5px 15px;
+                        border-radius: 20px;
+                        font-weight: bold;
+                        font-size: 12px;
+                    ">{alerte['urgence']}</span>
+                </div>
+                
+                <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 12px; color: #666;">
+                        <span>🔍 {alerte.get('categorie', 'Non catégorisé')}</span>
+                        <span style="margin-left: 15px;">📅 {datetime.fromisoformat(alerte['date_detection']).strftime('%d/%m/%Y %H:%M')}</span>
+                    </div>
+                    
+                    <div>
+                        <span style="
+                            background: #3b82f6;
+                            color: white;
+                            padding: 5px 15px;
+                            border-radius: 5px;
+                            font-size: 12px;
+                        ">Action requise: {alerte['action_requise']}</span>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
             # Actions
             col_action1, col_action2, col_action3, col_action4 = st.columns(4)
             
             with col_action1:
-                if st.button("Marquer comme traité", key=f"resolve_full_{alerte['id']}", use_container_width=True):
+                if st.button("✅ Marquer comme traité", key=f"resolve_full_{alerte['id']}", use_container_width=True):
                     marquer_alerte_traitee(alerte['id'])
                     st.success(f"Alerte {alerte['id']} marquée comme traitée")
                     time.sleep(1)
                     st.rerun()
             
             with col_action2:
-                if st.button(" Créer commande", key=f"order_{alerte['id']}", use_container_width=True):
+                if st.button("📝 Créer commande", key=f"order_{alerte['id']}", use_container_width=True):
                     if alerte['type'] == 'stock_bas':
                         st.info(f"Création d'une commande pour {alerte['produit_nom']}")
                         # Ici vous pourriez appeler une fonction pour créer une commande
             
             with col_action3:
-                if st.button(" Planifier rappel", key=f"remind_{alerte['id']}", use_container_width=True):
+                if st.button("🔔 Planifier rappel", key=f"remind_{alerte['id']}", use_container_width=True):
                     st.info("Rappel planifié pour demain")
             
             with col_action4:
-                if st.button("Voir historique", key=f"history_{alerte['id']}", use_container_width=True):
+                if st.button("📊 Voir historique", key=f"history_{alerte['id']}", use_container_width=True):
                     st.session_state[f"show_history_{alerte['id']}"] = True
 
 def marquer_alerte_traitee(alerte_id):
@@ -581,7 +487,7 @@ def marquer_alerte_traitee(alerte_id):
 def display_alertes_actives():
     """Affiche la liste des alertes actives"""
     
-    st.markdown("### Alertes actives nécessitant une action")
+    st.markdown("### 🔥 Alertes actives nécessitant une action")
     
     # Filtres
     col_filter1, col_filter2, col_filter3, col_filter4 = st.columns(4)
@@ -606,7 +512,7 @@ def display_alertes_actives():
     
     with col_filter4:
         st.write("")  # Espacement
-        if st.button("Actualiser", use_container_width=True):
+        if st.button("🔄 Actualiser", use_container_width=True):
             st.rerun()
     
     # Récupérer et filtrer les alertes
@@ -636,7 +542,7 @@ def display_alertes_actives():
         col_group1, col_group2, col_group3 = st.columns(3)
         
         with col_group1:
-            if st.button("Tout marquer comme traité", use_container_width=True):
+            if st.button("✅ Tout marquer comme traité", use_container_width=True):
                 for alerte in alertes_triees:
                     marquer_alerte_traitee(alerte['id'])
                 st.success("Toutes les alertes ont été marquées comme traitées")
@@ -644,18 +550,18 @@ def display_alertes_actives():
                 st.rerun()
         
         with col_group2:
-            if st.button("Exporter la liste", use_container_width=True):
+            if st.button("📧 Exporter la liste", use_container_width=True):
                 df = pd.DataFrame(alertes_triees)
                 csv = df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label="Télécharger CSV",
+                    label="📥 Télécharger CSV",
                     data=csv,
                     file_name=f"alertes_actives_{datetime.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv"
                 )
         
         with col_group3:
-            if st.button("Générer rapport", use_container_width=True):
+            if st.button("📋 Générer rapport", use_container_width=True):
                 st.info("Rapport généré et envoyé par email")
         
         # Affichage des alertes
@@ -665,13 +571,13 @@ def display_alertes_actives():
             st.markdown("")
     
     else:
-        st.success("Excellent ! Aucune alerte active pour le moment.")
+        st.success("🎉 Excellent ! Aucune alerte active pour le moment.")
         st.balloons()
 
 def display_historique_alertes():
     """Affiche l'historique des alertes traitées"""
     
-    st.markdown("### Historique des alertes")
+    st.markdown("### 📜 Historique des alertes")
     
     # Statistiques historiques
     col_hist1, col_hist2, col_hist3 = st.columns(3)
@@ -692,7 +598,7 @@ def display_historique_alertes():
     st.markdown("---")
     
     # Graphique historique
-    st.markdown("#### Evolution des alertes (7 derniers jours)")
+    st.markdown("#### 📈 Évolution des alertes (7 derniers jours)")
     
     # Données simulées pour l'historique
     dates = [(datetime.now() - timedelta(days=i)).strftime('%d/%m') for i in range(6, -1, -1)]
@@ -732,7 +638,7 @@ def display_historique_alertes():
     
     # Liste des alertes traitées récemment
     st.markdown("---")
-    st.markdown("#### Dernières alertes traitées")
+    st.markdown("#### 🕐 Dernières alertes traitées")
     
     # Dans une vraie application, vous auriez une table historique dans la base
     historique_simule = [
@@ -769,17 +675,17 @@ def display_historique_alertes():
             with col_hist3:
                 st.write(f"**Action:** {hist['action']}")
             
-            if st.button("Voir détails", key=f"hist_detail_{hist['id']}"):
+            if st.button("🔍 Voir détails", key=f"hist_detail_{hist['id']}"):
                 st.info(f"Détails complets pour {hist['id']}")
 
 def display_configuration_alertes():
     """Affiche la configuration des alertes"""
     
-    st.markdown("### Configuration du système d'alertes")
+    st.markdown("### ⚙️ Configuration du système d'alertes")
     
     # Paramètres généraux
     with st.form("config_form"):
-        st.markdown("#### Paramètres de notification")
+        st.markdown("#### 🔔 Paramètres de notification")
         
         col_notif1, col_notif2 = st.columns(2)
         
@@ -802,7 +708,7 @@ def display_configuration_alertes():
                 )
         
         st.markdown("---")
-        st.markdown("#### Seuils d'alerte")
+        st.markdown("#### 📊 Seuils d'alerte")
         
         col_seuil1, col_seuil2, col_seuil3 = st.columns(3)
         
@@ -833,7 +739,7 @@ def display_configuration_alertes():
             )
         
         st.markdown("---")
-        st.markdown("#### Planification")
+        st.markdown("#### ⏰ Planification")
         
         frequence = st.select_slider(
             "Fréquence des vérifications",
@@ -852,37 +758,37 @@ def display_configuration_alertes():
         
         with col_submit1:
             submit = st.form_submit_button(
-                " Enregistrer la configuration",
+                "💾 Enregistrer la configuration",
                 type="primary",
                 use_container_width=True
             )
         
         with col_submit2:
             test = st.form_submit_button(
-                " Tester les notifications",
+                "🔧 Tester les notifications",
                 use_container_width=True
             )
         
         with col_submit3:
             reset = st.form_submit_button(
-                "Réinitialiser",
+                "🔄 Réinitialiser",
                 use_container_width=True
             )
         
         if submit:
-            st.success("Configuration enregistrée avec succès")
+            st.success("✅ Configuration enregistrée avec succès")
             st.balloons()
         
         if test:
-            st.info(" Notification de test envoyée aux destinataires configurés")
+            st.info("📧 Notification de test envoyée aux destinataires configurés")
         
         if reset:
             st.info("Configuration réinitialisée aux valeurs par défaut")
     
     # Configuration avancée
     st.markdown("---")
-    with st.expander(" Configuration avancée"):
-        st.markdown("#### Personnalisation des seuils par catégorie")
+    with st.expander("🔧 Configuration avancée"):
+        st.markdown("#### 📊 Personnalisation des seuils par catégorie")
         
         try:
             categories = database.get_all_categories()
@@ -910,7 +816,7 @@ def display_configuration_alertes():
             st.error(f"Erreur: {e}")
         
         st.markdown("---")
-        st.markdown("#### Gestion des données")
+        st.markdown("#### 🗑️ Gestion des données")
         
         col_data1, col_data2 = st.columns(2)
         
@@ -927,7 +833,7 @@ def display_configuration_alertes():
                 st.info(f"Historique purgé au-delà de {jours_conservation} jours")
         
         with col_data2:
-            if st.button("Exporter toutes les données", use_container_width=True):
+            if st.button("📤 Exporter toutes les données", use_container_width=True):
                 st.info("Export des données en cours...")
 
 if __name__ == "__main__":
