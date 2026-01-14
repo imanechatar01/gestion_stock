@@ -1,8 +1,8 @@
-# views/_Users.py - Page de gestion des utilisateurs (Admin)
 import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
+from models.database import DB_PATH
 
 def show():
     """Page de gestion des utilisateurs - Réservée aux administrateurs"""
@@ -27,7 +27,7 @@ def show():
     with tab1:
         st.markdown("#### Liste de tous les utilisateurs")
         
-        conn = sqlite3.connect("stock.db")
+        conn = sqlite3.connect(DB_PATH)
         
         # Récupérer les utilisateurs
         query = """
@@ -165,7 +165,7 @@ def show():
                     auth = AuthManager()
                     
                     # Créer l'utilisateur avec le rôle choisi
-                    conn = sqlite3.connect("stock.db")
+                    conn = sqlite3.connect(DB_PATH)
                     cursor = conn.cursor()
                     
                     try:
@@ -190,7 +190,7 @@ def show():
     with tab3:
         st.markdown("#### 📊 Statistiques des utilisateurs")
         
-        conn = sqlite3.connect("stock.db")
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
         # Métriques

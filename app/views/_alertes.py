@@ -13,14 +13,6 @@ def show():
     
     # Titre avec indicateur en temps réel
     st.markdown("""
-    <style>
-    /* Remove default Streamlit top padding */
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 0rem !important;
-    }
-    </style>
-    
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px;">
         <div>
             <h1 style="margin: 0;">⚠️ Gestion des Alertes</h1>
@@ -141,15 +133,8 @@ def get_alertes_date_expiration():
 def get_alertes_mouvements():
     """Simule les alertes de mouvements inhabituels"""
     try:
-        # Récupérer les mouvements récents
-        mouvements = database.fetch_all("""
-            SELECT m.*, p.nom as produit_nom
-            FROM mouvements m
-            JOIN produits p ON m.produit_id = p.id
-            WHERE m.date_mouvement > DATE('now', '-7 days')
-            ORDER BY m.date_mouvement DESC
-            LIMIT 50
-        """) or []
+        # Récupérer les mouvements récents via la méthode de base de données
+        mouvements = database.get_mouvements_recents_alertes(days=7, limit=50) or []
         
         alertes = []
         
@@ -174,13 +159,42 @@ def get_alertes_mouvements():
         st.error(f"Erreur détection mouvements: {e}")
         return []
 
+def get_alertes_predictives():
+    """Génère des alertes basées sur les prédictions de rupture"""
+    from models.analytics import AnalyticsEngine
+    analytics = AnalyticsEngine()
+    
+    df_pred = analytics.get_global_analytics()
+    alertes = []
+    
+    if not df_pred.empty:
+        # Filtrer ceux qui vont être en rupture bientôt (ex: < 7 jours)
+        danger_zone = df_pred[df_pred['jours_restants'] <= 7]
+        
+        for _, row in danger_zone.iterrows():
+            alertes.append({
+                'id': f"PRED-{row['produit'][:3].upper()}-{int(row['stock_actuel'])}", # Pseudo ID unique
+                'type': 'stock_bas', # On réutilise le type stock_bas pour l'icône, ou on en crée un nouveau
+                'titre': f"Rupture imminente : {row['produit']}",
+                'description': f"Stock épuisé dans {row['jours_restants']:.1f} jour(s) au rythme actuel ({row['conso_journaliere']} u/j)",
+                'urgence': 'HAUTE' if row['jours_restants'] < 3 else 'MOYENNE',
+                'date_detection': datetime.now().isoformat(),
+                'produit_nom': row['produit'],
+                'categorie': 'Prédiction',
+                'statut': 'active',
+                'action_requise': 'Commander maintenant'
+            })
+            
+    return alertes
+
 def get_toutes_alertes():
     """Combine toutes les alertes"""
     alertes_stock = get_alertes_stock()
-    alertes_expiration = get_alertes_date_expiration()
+    # alertes_expiration = get_alertes_date_expiration() # Désactivé car simulé
     alertes_mouvements = get_alertes_mouvements()
+    # alertes_predictives = get_alertes_predictives()
     
-    toutes_alertes = alertes_stock + alertes_expiration + alertes_mouvements
+    toutes_alertes = alertes_stock + alertes_mouvements
     
     # Filtrer les alertes déjà traitées
     alertes_non_traitees = [
@@ -336,13 +350,7 @@ def display_tableau_de_bord():
             st.markdown("##### 📦 Produits à surveiller")
             
             try:
-                produits_faible_stock = database.fetch_all("""
-                    SELECT nom, quantite, seuil_min 
-                    FROM produits 
-                    WHERE quantite <= seuil_min * 1.5
-                    ORDER BY quantite/seuil_min
-                    LIMIT 5
-                """) or []
+                produits_faible_stock = database.get_produits_risque_imminent(limit=5) or []
                 
                 if produits_faible_stock:
                     for prod in produits_faible_stock:
@@ -419,50 +427,42 @@ def display_carte_alerte(alerte, compact=False):
     else:
         # Version détaillée
         with st.container():
+            # Card-like container with CSS
             st.markdown(f"""
             <div style="
-                background: {style['bg']};
-                border: 2px solid {style['border']};
-                border-radius: 10px;
+                background-color: {style['bg']};
+                border: 1px solid {style['border']};
+                border-radius: 8px;
                 padding: 15px;
-                margin: 10px 0;
+                margin-bottom: 15px;
             ">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">{icon}</span>
-                        <div>
-                            <h3 style="margin: 0; color: {style['text']};">{alerte['titre']}</h3>
-                            <p style="margin: 5px 0; color: #666;">{alerte['description']}</p>
-                        </div>
-                    </div>
-                    <span style="
-                        background: {style['border']};
-                        color: white;
-                        padding: 5px 15px;
-                        border-radius: 20px;
-                        font-weight: bold;
-                        font-size: 12px;
-                    ">{alerte['urgence']}</span>
-                </div>
-                
-                <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-size: 12px; color: #666;">
-                        <span>🔍 {alerte.get('categorie', 'Non catégorisé')}</span>
-                        <span style="margin-left: 15px;">📅 {datetime.fromisoformat(alerte['date_detection']).strftime('%d/%m/%Y %H:%M')}</span>
-                    </div>
-                    
-                    <div>
-                        <span style="
-                            background: #3b82f6;
-                            color: white;
-                            padding: 5px 15px;
-                            border-radius: 5px;
-                            font-size: 12px;
-                        ">Action requise: {alerte['action_requise']}</span>
-                    </div>
-                </div>
-            </div>
             """, unsafe_allow_html=True)
+            
+            c1, c2 = st.columns([0.1, 0.9])
+            with c1:
+                st.markdown(f"### {icon}")
+            
+            with c2:
+                st.subheader(alerte['titre'])
+                st.caption(f"{alerte['description']}")
+                
+                # Badges
+                st.markdown(f"""
+                <span style='
+                    background-color: {style['border']}30; 
+                    color: {style['text']};
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    font-size: 0.8em;
+                    font-weight: bold;
+                '>{alerte['urgence']}</span>
+                &nbsp; • &nbsp;
+                <span style='color: #666; font-size: 0.8em;'>📅 {datetime.fromisoformat(alerte['date_detection']).strftime('%d/%m/%Y %H:%M')}</span>
+                """, unsafe_allow_html=True)
+                
+                st.markdown(f"**Action requise:** {alerte['action_requise']}")
+
+            st.markdown("</div>", unsafe_allow_html=True)
             
             # Actions
             col_action1, col_action2, col_action3, col_action4 = st.columns(4)
@@ -496,7 +496,39 @@ def display_alertes_actives():
     """Affiche la liste des alertes actives"""
     
     st.markdown("### 🔥 Alertes actives nécessitant une action")
+
+    # --- ZEU : Affichage Détails Alerte ---
+    # Vérifier si une alerte est sélectionnée pour affichage
+    selected_alert_id = None
+    for key in st.session_state:
+        if key.startswith("show_alert_") and st.session_state[key]:
+            selected_alert_id = key.replace("show_alert_", "")
+            break
     
+    if selected_alert_id:
+        st.info(f"Détails de l'alerte : {selected_alert_id}")
+        # Récupérer l'objet alerte complet (optimisation possible : passer l'objet)
+        all_alerts = get_toutes_alertes()
+        target_alert = next((a for a in all_alerts if str(a['id']) == str(selected_alert_id)), None)
+        
+        if target_alert:
+            with st.expander("🔍 DÉTAILS DE L'ALERTE", expanded=True):
+                col_d1, col_d2 = st.columns([2, 1])
+                with col_d1:
+                    st.markdown(f"## {target_alert['titre']}")
+                    st.markdown(f"**Description :** {target_alert['description']}")
+                    st.markdown(f"**Catégorie :** {target_alert.get('categorie', 'N/A')}")
+                    st.markdown(f"**Produit concerné :** {target_alert.get('produit_nom', 'N/A')}")
+                with col_d2:
+                    st.metric("Niveau d'Urgence", target_alert['urgence'])
+                    st.caption(f"Détecté le : {target_alert['date_detection']}")
+                
+                if st.button("Fermer détails", key=f"close_{selected_alert_id}"):
+                    st.session_state[f"show_alert_{selected_alert_id}"] = False
+                    st.rerun()
+                
+                st.markdown("---")
+
     # Filtres
     col_filter1, col_filter2, col_filter3, col_filter4 = st.columns(4)
     

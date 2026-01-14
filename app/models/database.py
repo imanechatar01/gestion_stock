@@ -526,6 +526,36 @@ def get_statistiques():
     conn.close()
     return stats
 
+def get_mouvements_stats(filtres=None):
+    """Calcule les statistiques des mouvements pour une période donnée"""
+    query_base = "FROM mouvements WHERE 1=1"
+    params = []
+    
+    if filtres:
+        if filtres.get('date_debut'):
+            query_base += " AND DATE(date_mouvement) >= DATE(?)"
+            params.append(filtres['date_debut'])
+        if filtres.get('date_fin'):
+            query_base += " AND DATE(date_mouvement) <= DATE(?)"
+            params.append(filtres['date_fin'])
+            
+    stats = {}
+    
+    # Total Entrées
+    res = fetch_one(f"SELECT SUM(quantite) as total {query_base} AND type='entree'", params)
+    stats['total_entrees'] = res['total'] if res and res['total'] else 0
+    
+    # Total Sorties
+    res = fetch_one(f"SELECT SUM(quantite) as total {query_base} AND type='sortie'", params)
+    stats['total_sorties'] = res['total'] if res and res['total'] else 0
+    
+    # Nombre de mouvements
+    res = fetch_one(f"SELECT COUNT(*) as total {query_base}", params)
+    stats['nb_mouvements'] = res['total'] if res and res['total'] else 0
+    
+    return stats
+
+
 # ============================================================================
 # FONCTIONS FOURNISSEURS
 # ============================================================================

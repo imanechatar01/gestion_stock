@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
 from models import database
+from services.pdf_service import generate_stock_report
 
 # =======================
 # CSS personnalisé
@@ -51,6 +52,23 @@ def show():
         all_products = database.get_all_produits()
         produit_options = ["Tous"] + [f"{p['nom']} ({p['reference']})" for p in all_products]
         selected_prod_label = st.selectbox("Produit", produit_options)
+        
+        st.markdown("---")
+        st.header("📄 Export Rapport PDF")
+        periode_export = st.selectbox(
+            "Période du rapport PDF", 
+            ["Cette Semaine", "Ce Mois", "Cette Année"],
+            key="pdf_period_selector"
+        )
+        
+        # Si le sélecteur change, on réinitialise le rapport prêt
+        if "last_pdf_period" not in st.session_state:
+            st.session_state.last_pdf_period = periode_export
+            
+        if st.session_state.last_pdf_period != periode_export:
+            if 'pdf_report' in st.session_state:
+                del st.session_state.pdf_report
+            st.session_state.last_pdf_period = periode_export
         
         selected_prod_id = None
         if selected_prod_label != "Tous":
@@ -104,7 +122,42 @@ def show():
                 data=csv,
                 file_name=f"rapport_stock_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv",
+                use_container_width=True
             )
+            
+            # --- PDF Export Logic ---
+            st.markdown("---")
+            if st.button("📑 Préparer le Rapport PDF Général", use_container_width=True):
+                with st.spinner("Génération du PDF en cours..."):
+                    # Calculer les dates selon la période choisie
+                    fin = datetime.now()
+                    if periode_export == "Cette Semaine":
+                        debut = fin - timedelta(days=fin.weekday())
+                        debut = debut.replace(hour=0, minute=0, second=0, microsecond=0)
+                    elif periode_export == "Ce Mois":
+                        debut = fin.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                    else: # Cette Année
+                        debut = fin.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                    
+                    # Récupérer les données pour le PDF
+                    pdf_filters = {'date_debut': debut.date(), 'date_fin': fin.date()}
+                    stats_global = database.get_statistiques()
+                    period_mvt = database.get_mouvements(filtres=pdf_filters)
+                    
+                    # Stocker dans le state
+                    st.session_state.pdf_report = generate_stock_report(stats_global, period_mvt, f"Général ({periode_export})")
+                    st.session_state.pdf_filename = f"rapport_stock_{periode_export.lower().replace(' ', '_')}_{fin.strftime('%Y%m%d')}.pdf"
+            
+            # Afficher le bouton de téléchargement si le rapport est prêt
+            if 'pdf_report' in st.session_state:
+                st.success("✅ Rapport PDF prêt !")
+                st.download_button(
+                    label="⬇️ Télécharger le Rapport PDF",
+                    data=st.session_state.pdf_report,
+                    file_name=st.session_state.pdf_filename,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
         else:
             st.info("Aucun mouvement trouvé pour ces filtres.")
 

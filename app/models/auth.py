@@ -5,12 +5,17 @@ import sqlite3
 from datetime import datetime, timedelta
 import re
 import uuid
+from pathlib import Path
 
 class AuthManager:
     """Gestionnaire d'authentification qui utilise la même base de données"""
     
-    def __init__(self, db_path="stock.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        # Utiliser le même chemin que database.py
+        if db_path is None:
+            BASE_DIR = Path(__file__).parent.parent
+            db_path = BASE_DIR / "data" / "stock.db"
+        self.db_path = str(db_path)
         self.init_auth_tables()
     
     def init_auth_tables(self):

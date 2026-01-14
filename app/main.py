@@ -21,13 +21,15 @@ check_authentication()
 
 # Chargement du CSS adaptatif
 def load_css():
+    from pathlib import Path
+    css_dir = Path(__file__).parent / "static" / "css"
     
- 
+    # Charger style.css
     try:
-       with open('static/css/style.css') as f:
-        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
-        
-    except:
+        style_path = css_dir / "style.css"
+        with open(style_path, encoding='utf-8') as f:
+            st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+    except Exception as e:
         # Fallback CSS si le fichier n'existe pas
         st.markdown("""<style>
         [data-theme="dark"] .stApp { background: #0f172a; color: #f1f5f9; }
@@ -35,8 +37,13 @@ def load_css():
         </style>
         """, unsafe_allow_html=True)
         
-    with open('static/css/theme.css') as f:
-        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+    # Charger theme.css
+    try:
+        theme_path = css_dir / "theme.css"
+        with open(theme_path, encoding='utf-8') as f:
+            st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+    except Exception as e:
+        pass
 
 # Charger le CSS
 load_css()
